@@ -677,6 +677,7 @@ class FastCRUD(
         stmt: Select,
         sort_columns: Union[str, list[str]],
         sort_orders: Optional[Union[str, list[str]]] = None,
+        joins_config: Optional[list[JoinConfig]] = None,
     ) -> Select:
         """
         Apply sorting to a SQLAlchemy query based on specified column names and sort orders.
@@ -686,11 +687,13 @@ class FastCRUD(
             sort_columns: A single column name or a list of column names on which to apply sorting.
             sort_orders: A single sort order (`"asc"` or `"desc"`) or a list of sort orders corresponding
                 to the columns in `sort_columns`. If not provided, defaults to `"asc"` for each column.
+            joins_config: Optional list of `JoinConfig` instances for specifying joined models.
+                Used to find columns in joined models if they're not found in the main model.
 
         Raises:
             ValueError: Raised if sort orders are provided without corresponding sort columns,
                 or if an invalid sort order is provided (not `"asc"` or `"desc"`).
-            ArgumentError: Raised if an invalid column name is provided that does not exist in the model.
+            ArgumentError: Raised if an invalid column name is provided that does not exist in any model.
 
         Returns:
             The modified `Select` statement with sorting applied.
@@ -707,6 +710,9 @@ class FastCRUD(
 
             Applying ascending sort on multiple columns:
             >>> stmt = _apply_sorting(stmt, ['name', 'age'])
+
+            Applying sort on a column from a joined model:
+            >>> stmt = _apply_sorting(stmt, 'tier_name', None, joins_config)
 
         Note:
             This method modifies the passed `Select` statement in-place by applying the `order_by` clause
@@ -738,7 +744,25 @@ class FastCRUD(
             )
 
             for idx, column_name in enumerate(sort_columns):
+                # First try to find the column in the main model
                 column = getattr(self.model, column_name, None)
+
+                # If not found in the main model and joins_config is provided, 
+                # try to find it in the joined models
+                if not column and joins_config:
+                    # Check if the column name has a prefix that matches a joined model
+                    for join_config in joins_config:
+                        join_prefix = join_config.join_prefix or ""
+                        if join_prefix and column_name.startswith(join_prefix):
+                            # Extract the actual column name without the prefix
+                            actual_column_name = column_name[len(join_prefix):]
+                            # Get the model or alias to use
+                            model_or_alias = join_config.alias or join_config.model
+                            # Try to get the column from the joined model
+                            column = getattr(model_or_alias, actual_column_name, None)
+                            if column:
+                                break
+
                 if not column:
                     raise ArgumentError(f"Invalid column name: {column_name}")
 
@@ -871,7 +895,7 @@ class FastCRUD(
         stmt = select(*to_select).filter(*filters)
 
         if sort_columns:
-            stmt = self._apply_sorting(stmt, sort_columns, sort_orders)
+            stmt = self._apply_sorting(stmt, sort_columns, sort_orders, None)
         return stmt
 
     async def get(
@@ -2115,7 +2139,7 @@ class FastCRUD(
             stmt = stmt.filter(*primary_filters)
 
         if sort_columns:
-            stmt = self._apply_sorting(stmt, sort_columns, sort_orders)
+            stmt = self._apply_sorting(stmt, sort_columns, sort_orders, join_definitions)
 
         if offset:
             stmt = stmt.offset(offset)
@@ -2445,13 +2469,13 @@ class FastCRUD(
         return_as_model: bool = False,
     ) -> dict:
         data = [dict(row) for row in db_row.mappings()]
-        
+
         if not return_as_model:
             return {"data": data}
-        
+
         if not schema_to_select:  # pragma: no cover
             raise ValueError("schema_to_select required when return_as_model is True")
-        
+
         try:
             return {"data": [schema_to_select(**row) for row in data]}
         except ValidationError as e:  # pragma: no cover
