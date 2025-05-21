@@ -364,3 +364,79 @@ async def test_get_multi_not_filtering(async_session, test_model):
     )
     # Should only return records with tier_id = 4 or tier_id = 6
     assert all(item["tier_id"] in [4, 6] for item in result["data"])
+
+
+@pytest.mark.asyncio
+async def test_get_multi_with_relationship_schema(async_session, event_loop):
+    from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, DateTime
+    from sqlalchemy.orm import relationship, declarative_base
+    from pydantic import BaseModel, ConfigDict
+    from typing import Optional
+
+    Base = declarative_base()
+
+    class TierModel(Base):
+        __tablename__ = "tier_test_rel" # Use a unique table name for this test
+        id = Column(Integer, primary_key=True)
+        name = Column(String(32), unique=True)
+        tests = relationship("ModelTestRel", back_populates="tier")
+
+    class ModelTestRel(Base): # Use a unique model name for this test
+        __tablename__ = "test_rel" # Use a unique table name for this test
+        id = Column(Integer, primary_key=True)
+        name = Column(String(32))
+        tier_id = Column(Integer, ForeignKey("tier_test_rel.id"))
+        tier = relationship("TierModel", back_populates="tests")
+        is_deleted = Column(Boolean, default=False)
+        deleted_at = Column(DateTime, nullable=True, default=None)
+
+    class TierReadSchema(BaseModel):
+        name: str
+
+    class TestReadSchema(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+        name: str
+        tier_id: int
+        tier: Optional[TierReadSchema] = None
+
+    engine = async_session.bind
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    try:
+        # Populate data
+        tier1 = TierModel(id=1, name="Tier 1")
+        test_model_data_1 = ModelTestRel(id=1, name="Test 1", tier_id=1)
+
+        async_session.add_all([tier1, test_model_data_1])
+        await async_session.commit()
+        await async_session.refresh(test_model_data_1)
+        await async_session.refresh(tier1)
+
+
+        crud = FastCRUD(ModelTestRel)
+        # Spy on the select statement construction
+        # This is a simplified way to check the behavior.
+        # A more robust way would be to use SQLAlchemy event listeners to capture the exact query.
+        
+        results = await crud.get_multi(
+            db=async_session,
+            schema_to_select=TestReadSchema,
+            return_as_model=True # Important to trigger Pydantic validation
+        )
+
+        assert len(results["data"]) == 1
+        item = results["data"][0]
+
+        assert isinstance(item, TestReadSchema)
+        assert item.name == "Test 1"
+        assert item.tier_id == 1
+        assert item.tier is None, "The 'tier' relationship field should be None and not selected"
+
+        # Further check: ensure no unexpected fields (like anon_1) are present,
+        # Pydantic's extra="forbid" in TestReadSchema helps with this.
+        # If an unexpected boolean column `anon_1` was selected, Pydantic would raise a validation error.
+
+    finally:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
