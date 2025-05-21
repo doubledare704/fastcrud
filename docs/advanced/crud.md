@@ -43,18 +43,15 @@ But you also may want a more robust typing, for that purpose, you may also pass 
 
 
     fastcrud/examples/user/schemas.py:updateschema_common
-
-
-    fastcrud/examples/user/schemas.py:deleteschema
     --8<--
     ```
 
 ```python
 from .user.model import User
-from .user.schemas import CreateUserSchema, ReadUserSchema, UpdateUserSchema, DeleteUserSchema
+from .user.schemas import CreateUserSchema, ReadUserSchema, UpdateUserSchema
 
-# Just pass None if you don't have one of the schemas
-UserCRUD = FastCRUD[User, CreateUserSchema, UpdateUserSchema, None, DeleteUserSchema]
+# Example of FastCRUD typing with a specific SelectSchemaType
+UserCRUD = FastCRUD[User, CreateUserSchema, UpdateUserSchema, ReadUserSchema]
 ```
 
 Then you can initialize `UserCRUD` like you would any `FastCRUD` instance, but with the relevant types:
@@ -380,7 +377,6 @@ Start by creating the models and schemas, followed by a description of how they'
         fastcrud/examples/user/schemas.py:createschema
         fastcrud/examples/user/schemas.py:readschema
         fastcrud/examples/user/schemas.py:updateschema
-        fastcrud/examples/user/schemas.py:deleteschema
         --8<--
         ```
 
@@ -401,7 +397,6 @@ Start by creating the models and schemas, followed by a description of how they'
         fastcrud/examples/story/schemas.py:createschema
         fastcrud/examples/story/schemas.py:readschema
         fastcrud/examples/story/schemas.py:updateschema
-        fastcrud/examples/story/schemas.py:deleteschema
         --8<--
         ```
 
@@ -422,7 +417,6 @@ Start by creating the models and schemas, followed by a description of how they'
         fastcrud/examples/task/schemas.py:createschema
         fastcrud/examples/task/schemas.py:readschema
         fastcrud/examples/task/schemas.py:updateschema
-        fastcrud/examples/task/schemas.py:deleteschema
         --8<--
         ```
 

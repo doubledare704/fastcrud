@@ -29,10 +29,8 @@ from sqlalchemy.dialects import postgresql, sqlite, mysql
 
 from fastcrud.types import (
     CreateSchemaType,
-    DeleteSchemaType,
     ModelType,
     SelectSchemaType,
-    UpdateSchemaInternalType,
     UpdateSchemaType,
     GetMultiResponseModel,
     GetMultiResponseDict,
@@ -56,8 +54,6 @@ class FastCRUD(
         ModelType,
         CreateSchemaType,
         UpdateSchemaType,
-        UpdateSchemaInternalType,
-        DeleteSchemaType,
         SelectSchemaType,
     ]
 ):
@@ -213,7 +209,6 @@ class FastCRUD(
                 fastcrud/examples/user/schemas.py:createschema
                 fastcrud/examples/user/schemas.py:readschema
                 fastcrud/examples/user/schemas.py:updateschema
-                fastcrud/examples/user/schemas.py:deleteschema
                 --8<--
                 ```
 
@@ -234,7 +229,6 @@ class FastCRUD(
                 fastcrud/examples/story/schemas.py:createschema
                 fastcrud/examples/story/schemas.py:readschema
                 fastcrud/examples/story/schemas.py:updateschema
-                fastcrud/examples/story/schemas.py:deleteschema
                 --8<--
                 ```
 
@@ -255,7 +249,6 @@ class FastCRUD(
                 fastcrud/examples/task/schemas.py:createschema
                 fastcrud/examples/task/schemas.py:readschema
                 fastcrud/examples/task/schemas.py:updateschema
-                fastcrud/examples/task/schemas.py:deleteschema
                 --8<--
                 ```
 
@@ -345,7 +338,7 @@ class FastCRUD(
         ```python
         # Assuming you have a User model (either SQLAlchemy or SQLModel)
         # pydantic schemas for creation, update and deletion and an async session `db`
-        UserCRUD = FastCRUD[User, CreateUserSchema, UpdateUserSchema, None, DeleteUserSchema]
+        UserCRUD = FastCRUD[User, CreateUserSchema, UpdateUserSchema]
         user_crud = UserCRUD(User)
 
         # If you don't care about typing, you can also just ignore the UserCRUD part

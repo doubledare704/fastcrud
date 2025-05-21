@@ -64,6 +64,12 @@ class ModelTest(Base):
     deleted_at = Column(DateTime, nullable=True, default=None)
 
 
+class ModelTestHardDelete(Base):
+    __tablename__ = "test_hard_delete"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(32))
+
+
 class ModelTestWithTimestamp(Base):
     __tablename__ = "model_test_with_timestamp"
     id = Column(Integer, primary_key=True)
@@ -230,6 +236,20 @@ class UpdateSchemaTest(BaseModel):
 
 class DeleteSchemaTest(BaseModel):
     pass
+
+
+class CreateHardDeleteSchemaTest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str
+
+
+class UpdateHardDeleteSchemaTest(BaseModel):
+    name: Optional[str] = None
+
+
+class ReadHardDeleteSchemaTest(BaseModel):
+    id: int
+    name: str
 
 
 class TierSchemaTest(BaseModel):
@@ -501,7 +521,7 @@ def client(
     multi_pk_model,
     create_schema,
     update_schema,
-    delete_schema,
+    delete_schema, # Keep for existing tests that might use it, will be phased out.
     tier_schema,
     tier_delete_schema,
     multi_pk_test_schema,
@@ -517,7 +537,7 @@ def client(
             crud=FastCRUD(test_model),
             create_schema=create_schema,
             update_schema=update_schema,
-            delete_schema=delete_schema,
+            # delete_schema=delete_schema, # Removed for default client
             path="/test",
             tags=["test"],
             endpoint_names={
@@ -671,13 +691,15 @@ def invalid_filtered_client(
 @pytest.fixture
 def endpoint_creator(test_model, async_session) -> EndpointCreator:
     """Fixture to create an instance of EndpointCreator."""
+    # This fixture might need to be updated or duplicated if tests rely on delete_schema
+    # For now, keeping it as is, assuming it's for general EndpointCreator tests not specific to delete_schema behavior
     return EndpointCreator(
         session=lambda: async_session,
-        model=ModelTest,
+        model=ModelTest, # Uses ModelTest which has is_deleted
         crud=FastCRUD(test_model),
         create_schema=CreateSchemaTest,
         update_schema=UpdateSchemaTest,
-        delete_schema=DeleteSchemaTest,
+        add_hard_delete_endpoint=False, # Default behavior
         path="/custom_test",
         tags=["custom_test"],
         endpoint_names={
@@ -689,3 +711,81 @@ def endpoint_creator(test_model, async_session) -> EndpointCreator:
             "read_multi": "get_multi",
         },
     )
+
+
+@pytest.fixture
+def model_hard_delete():
+    return ModelTestHardDelete
+
+@pytest.fixture
+def create_schema_hard_delete():
+    return CreateHardDeleteSchemaTest
+
+@pytest.fixture
+def update_schema_hard_delete():
+    return UpdateHardDeleteSchemaTest
+
+
+@pytest.fixture
+def client_hard_delete_disabled_soft_delete_model(test_model, create_schema, update_schema, async_session):
+    app = FastAPI()
+    app.include_router(
+        crud_router(
+            session=lambda: async_session,
+            model=test_model, # ModelTest (has is_deleted)
+            create_schema=create_schema,
+            update_schema=update_schema,
+            add_hard_delete_endpoint=False,
+            path="/test_soft_delete",
+            tags=["test_soft_delete"],
+        )
+    )
+    return TestClient(app)
+
+@pytest.fixture
+def client_hard_delete_enabled_soft_delete_model(test_model, create_schema, update_schema, async_session):
+    app = FastAPI()
+    app.include_router(
+        crud_router(
+            session=lambda: async_session,
+            model=test_model, # ModelTest (has is_deleted)
+            create_schema=create_schema,
+            update_schema=update_schema,
+            add_hard_delete_endpoint=True,
+            path="/test_soft_delete_hd_enabled",
+            tags=["test_soft_delete_hd_enabled"],
+        )
+    )
+    return TestClient(app)
+
+@pytest.fixture
+def client_hard_delete_disabled_hard_delete_model(model_hard_delete, create_schema_hard_delete, update_schema_hard_delete, async_session):
+    app = FastAPI()
+    app.include_router(
+        crud_router(
+            session=lambda: async_session,
+            model=model_hard_delete, # ModelTestHardDelete (no is_deleted)
+            create_schema=create_schema_hard_delete,
+            update_schema=update_schema_hard_delete,
+            add_hard_delete_endpoint=False,
+            path="/test_hard_delete",
+            tags=["test_hard_delete"],
+        )
+    )
+    return TestClient(app)
+
+@pytest.fixture
+def client_hard_delete_enabled_hard_delete_model(model_hard_delete, create_schema_hard_delete, update_schema_hard_delete, async_session):
+    app = FastAPI()
+    app.include_router(
+        crud_router(
+            session=lambda: async_session,
+            model=model_hard_delete, # ModelTestHardDelete (no is_deleted)
+            create_schema=create_schema_hard_delete,
+            update_schema=update_schema_hard_delete,
+            add_hard_delete_endpoint=True,
+            path="/test_hard_delete_hd_enabled",
+            tags=["test_hard_delete_hd_enabled"],
+        )
+    )
+    return TestClient(app)

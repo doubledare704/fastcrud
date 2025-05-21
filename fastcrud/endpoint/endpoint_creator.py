@@ -9,7 +9,6 @@ from fastcrud.crud.fast_crud import FastCRUD
 from fastcrud.paginated import ListResponse, PaginatedListResponse
 from fastcrud.types import (
     CreateSchemaType,
-    DeleteSchemaType,
     ModelType,
     SelectSchemaType,
     UpdateSchemaType,
@@ -246,7 +245,7 @@ class EndpointCreator:
         update_schema: Type[UpdateSchemaType],
         crud: Optional[FastCRUD] = None,
         include_in_schema: bool = True,
-        delete_schema: Optional[Type[DeleteSchemaType]] = None,
+        add_hard_delete_endpoint: bool = False,
         path: str = "",
         tags: Optional[list[Union[str, Enum]]] = None,
         is_deleted_column: str = "is_deleted",
@@ -271,7 +270,7 @@ class EndpointCreator:
         self.model = model
         self.create_schema = create_schema
         self.update_schema = update_schema
-        self.delete_schema = delete_schema
+        self.add_hard_delete_endpoint = add_hard_delete_endpoint
         self.select_schema = select_schema
         self.include_in_schema = include_in_schema
         self.path = path
@@ -602,9 +601,8 @@ class EndpointCreator:
             except ValidationError as e:
                 raise ValueError(f"Invalid CRUD methods in deleted_methods: {e}")
 
-        delete_description = "Delete a"
-        if self.delete_schema:
-            delete_description = "Soft delete a"
+        is_model_configured_for_soft_delete = self.crud.is_deleted_column in self.crud.model_col_names
+        delete_description = "Soft delete a" if is_model_configured_for_soft_delete else "Delete a"
 
         if ("create" in included_methods) and ("create" not in deleted_methods):
             self.router.add_api_route(
@@ -683,7 +681,7 @@ class EndpointCreator:
         if (
             ("db_delete" in included_methods)
             and ("db_delete" not in deleted_methods)
-            and self.delete_schema
+            and self.add_hard_delete_endpoint
         ):
             self.router.add_api_route(
                 self._get_endpoint_path(operation="db_delete"),

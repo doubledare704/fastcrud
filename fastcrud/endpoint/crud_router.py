@@ -6,7 +6,6 @@ from fastapi import APIRouter
 from fastcrud.crud.fast_crud import FastCRUD
 from fastcrud.types import (
     CreateSchemaType,
-    DeleteSchemaType,
     ModelType,
     UpdateSchemaType,
     SelectSchemaType,
@@ -21,7 +20,7 @@ def crud_router(
     create_schema: Type[CreateSchemaType],
     update_schema: Type[UpdateSchemaType],
     crud: Optional[FastCRUD] = None,
-    delete_schema: Optional[Type[DeleteSchemaType]] = None,
+    add_hard_delete_endpoint: bool = False,
     path: str = "",
     tags: Optional[list[Union[str, Enum]]] = None,
     include_in_schema: bool = True,
@@ -54,7 +53,7 @@ def crud_router(
         create_schema: Pydantic schema for creating an item.
         update_schema: Pydantic schema for updating an item.
         crud: An optional `FastCRUD` instance. If not provided, uses `FastCRUD(model)`.
-        delete_schema: Optional Pydantic schema for deleting an item.
+        add_hard_delete_endpoint: If `True`, adds an endpoint for hard deleting items. Defaults to `False`.
         path: Base path for the CRUD endpoints.
         tags: Optional list of tags for grouping endpoints in the documentation.
         include_in_schema: Whether to include the created endpoints in the OpenAPI schema.
@@ -310,7 +309,7 @@ def crud_router(
             model=Product,
             create_schema=CreateProductSchema,
             update_schema=UpdateProductSchema,
-            delete_schema=DeleteProductSchema,
+            add_hard_delete_endpoint=True,
             path="/products",
             tags=["Products"],
         )
@@ -536,7 +535,7 @@ def crud_router(
         create_schema=create_schema,  # type: ignore
         update_schema=update_schema,  # type: ignore
         include_in_schema=include_in_schema,
-        delete_schema=delete_schema,  # type: ignore
+        add_hard_delete_endpoint=add_hard_delete_endpoint,
         path=path,
         tags=tags,
         is_deleted_column=is_deleted_column,

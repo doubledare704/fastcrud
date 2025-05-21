@@ -115,7 +115,6 @@ Define your SQLAlchemy models and corresponding Pydantic schemas for data valida
     fastcrud/examples/item/schemas.py:imports
     fastcrud/examples/item/schemas.py:createschema
     fastcrud/examples/item/schemas.py:updateschema
-    fastcrud/examples/item/schemas.py:deleteschema
     --8<--
     ```
 
@@ -168,7 +167,7 @@ endpoint_creator = EndpointCreator(
     create_schema=CreateItemSchema,
     update_schema=UpdateItemSchema,
     crud=item_crud,
-    delete_schema=DeleteItemSchema,
+    add_hard_delete_endpoint=True,
     path="/itempath",
     tags=["ItemTag"]
 )
@@ -199,6 +198,14 @@ app.include_router(endpoint_creator.router)
 ## Advanced Customization
 
 You can override the default methods in `EndpointCreator` for more control over the CRUD operations. You can also specify the operations you want to include. Read more in the [advanced section](../advanced/endpoint.md).
+
+### Delete Endpoints
+
+The `crud_router` and `EndpointCreator` will always create a `/delete` endpoint.
+- If your SQLAlchemy model is configured with an `is_deleted` column (as specified by the `is_deleted_column` parameter, defaulting to `"is_deleted"`), this endpoint will perform a **soft delete**.
+- Otherwise, it will perform a **hard delete**.
+
+To explicitly add a hard delete endpoint (usually at `/db_delete`), you can set `add_hard_delete_endpoint=True` when using `crud_router` or `EndpointCreator`.
 
 ## Conclusion
 
