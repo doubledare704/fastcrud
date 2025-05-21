@@ -210,6 +210,62 @@ class ModelWithCustomColumns(Base):
     name = Column("display_name", String(32), nullable=False)
 
 
+# Schemas for UserTest and TagTest
+class TagTestRead(BaseModel):
+    id: int
+    name: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserTestRead(BaseModel):
+    id: int
+    name: str
+    tags: list[TagTestRead] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserTestCreate(BaseModel):
+    name: str
+
+
+class TagTestCreate(BaseModel):
+    name: str
+
+
+class UserTestUpdateWithTags(BaseModel):
+    name: Optional[str] = None
+    tags: Optional[list[int]] = None
+
+
+# Association table for UserTest and TagTest
+user_tag_association_test = sqlalchemy.Table(
+    "user_tag_association_test",
+    Base.metadata,
+    sqlalchemy.Column("user_test_id", Integer, ForeignKey("user_test.id"), primary_key=True),
+    sqlalchemy.Column("tag_test_id", Integer, ForeignKey("tag_test.id"), primary_key=True),
+)
+
+
+class UserTest(Base):
+    __tablename__ = "user_test"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(50))
+    tags = relationship(
+        "TagTest", secondary=user_tag_association_test, back_populates="users"
+    )
+
+
+class TagTest(Base):
+    __tablename__ = "tag_test"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(50))
+    users = relationship(
+        "UserTest", secondary=user_tag_association_test, back_populates="tags"
+    )
+
+
 class CreateSchemaTest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str

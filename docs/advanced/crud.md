@@ -245,6 +245,42 @@ item = await item_crud.update(
 # this will return the updated data in the form of ItemSchema
 ```
 
+### Updating Many-to-Many Relationships
+
+The `update` method also supports updating many-to-many relationships. To do this, include the relationship field in your update `object` (Pydantic schema or dictionary) with a list of IDs of the related entities.
+
+-   **Setting/Replacing Relationships**: Provide a list of related entity IDs (e.g., `{"tags": [1, 2, 3]}`). This will associate the main record with the related entities corresponding to these IDs, replacing any existing associations for that relationship.
+-   **Clearing Relationships**: Provide an empty list for the relationship field (e.g., `{"tags": []}`). This will remove all existing associations for that relationship from the main record.
+
+This feature relies on the relationship being correctly defined in your SQLAlchemy models (e.g., using `relationship(secondary=...)`). The input Pydantic schema for the update operation should typically define the relationship field as `Optional[List[PrimaryKeyType]]`, where `PrimaryKeyType` is the type of the related model's primary key (e.g., `int`).
+
+**Example:**
+
+```python
+# Assume:
+# - User model has a many-to-many relationship named 'tags' with a Tag model.
+# - UserUpdateSchema has a field like 'tags: Optional[List[int]] = None'.
+# - UserReadSchema is used to read the User model, potentially including its tags.
+
+# Example: Update a user's name and set their tags to Tag IDs 1, 2, and 3
+updated_user_details = await user_crud.update(
+    db=db,
+    object={"name": "Alice Wonderland", "tags": [1, 2, 3]},
+    id=user_id_to_update,
+    schema_to_select=UserReadSchema, # Optional: if you want the updated model back
+    return_as_model=True             # Optional: if you want it as a Pydantic model
+)
+
+# Example: Remove all tags from a user
+await user_crud.update(
+    db=db,
+    object={"tags": []},
+    id=user_id_to_update
+)
+```
+
+For more details, refer to the `FastCRUD.update` method's main docstring.
+
 ## Unpaginated `get_multi` and `get_multi_joined`
 
 If you pass `None` to `limit` in `get_multi` and `get_multi_joined`, you get the whole unpaginated set of data that matches the filters. Use this with caution.
