@@ -240,37 +240,71 @@ await item_crud.update(
 
 ```python
 delete(
-    db: AsyncSession, 
-    db_row: Optional[Row] = None, 
+    db: AsyncSession,
+    filters: Optional[DeleteSchemaType] = None,
+    db_row: Optional[Row] = None,
     allow_multiple: bool = False,
     commit: bool = True,
-    **kwargs: Any,
+    **extra_filters: Any,
 ) -> None
 ```
 
-**Purpose**: To delete a record from the database, with support for soft delete.  
-**Usage Example**: Deletes the item with `item_id` as its `id`, performs a soft delete if the model has the `is_deleted` column.
+**Purpose**: To delete a record from the database, with support for soft delete.
+Filters can be provided via the `filters` parameter (using a Pydantic schema for type safety) or as `**extra_filters`.
 
+**Usage Example**: Deletes the item with `item_id` as its `id`. Performs a soft delete if the model has the `is_deleted` column.
+
+Using `**extra_filters` (if `id` is a valid field in your model for filtering):
 ```python
-await item_crud.delete(db, id=item_id)
+await item_crud.delete(db, id=item_id) # 'id' will be caught by **extra_filters
+```
+
+Using the `filters` parameter with a Pydantic schema (recommended for type safety):
+```python
+# Assuming you have a DeleteItemSchema
+# from .item.schemas import DeleteItemSchema
+delete_filter = DeleteItemSchema(id=item_id)
+await item_crud.delete(db, filters=delete_filter)
+```
+
+You can also explicitly use `extra_filters`:
+```python
+await item_crud.delete(db, extra_filters={'id': item_id})
 ```
 
 ### 8. Hard Delete
 
 ```python
 db_delete(
-    db: AsyncSession, 
+    db: AsyncSession,
+    filters: Optional[DeleteSchemaType] = None,
     allow_multiple: bool = False,
     commit: bool = True,
-    **kwargs: Any,
+    **extra_filters: Any,
 ) -> None
 ```
 
-**Purpose**: To hard delete a record from the database.  
+**Purpose**: To hard delete a record from the database.
+Filters can be provided via the `filters` parameter (using a Pydantic schema for type safety) or as `**extra_filters`.
+
 **Usage Example**: Hard deletes the item with `item_id` as its `id`.
 
+Using `**extra_filters` (if `id` is a valid field in your model for filtering):
 ```python
-await item_crud.db_delete(db, id=item_id)
+await item_crud.db_delete(db, id=item_id) # 'id' will be caught by **extra_filters
+```
+
+Using the `filters` parameter with a Pydantic schema (recommended for type safety):
+```python
+# Assuming you have a DeleteItemSchema
+# from .item.schemas import DeleteItemSchema
+delete_filter = DeleteItemSchema(id=item_id)
+await item_crud.db_delete(db, filters=delete_filter)
+```
+
+You can also explicitly use `extra_filters`:
+```python
+await item_crud.db_delete(db, extra_filters={'id': item_id})
 ```
 
 ---

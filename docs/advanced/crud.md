@@ -89,12 +89,36 @@ await item_crud.update(
 
 Similarly, you can delete multiple records by using the `allow_multiple=True` parameter in the `delete` or `db_delete` method, depending on whether you're performing a soft or hard delete.
 
+You can pass filters in two ways:
+
+1.  Using the `filters` parameter with a Pydantic schema (recommended for type safety).
+2.  Using `**extra_filters` for keyword argument filters.
+
 ```python
-# Soft delete all items not sold in the last year
+# Assuming you have a DeleteItemSchema
+# from .item.schemas import DeleteItemSchema
+
+# Soft delete all items not sold in the last year using the 'filters' parameter
+delete_filter_schema = DeleteItemSchema(last_sold__lt=datetime.datetime.now() - datetime.timedelta(days=365))
+await item_crud.delete(
+    db=db,
+    filters=delete_filter_schema,
+    allow_multiple=True
+)
+
+# Alternatively, using **extra_filters (less type-safe)
 await item_crud.delete(
     db=db,
     allow_multiple=True,
-    last_sold__lt=datetime.datetime.now() - datetime.timedelta(days=365),
+    extra_filters={'last_sold__lt': datetime.datetime.now() - datetime.timedelta(days=365)}
+)
+
+# For simple cases, **extra_filters can be used directly with field names if your model attributes match
+# (though using the `filters` parameter is generally safer and more explicit)
+await item_crud.delete(
+    db=db,
+    allow_multiple=True,
+    last_sold__lt=datetime.datetime.now() - datetime.timedelta(days=365) # This will be caught by **extra_filters
 )
 ```
 
@@ -195,12 +219,23 @@ from .item.model import Item
 
 item_crud = FastCRUD(Item)
 
+# Using extra_filters
 await item_crud.delete(
-    db=db, 
-    commit=False, 
-    id=1,
+    db=db,
+    commit=False,
+    extra_filters={'id': 1}
 )
 # this will not actually delete until you run a db.commit()
+
+# Alternatively, using the 'filters' parameter with a schema (recommended)
+# Assuming you have a DeleteItemSchema
+# from .item.schemas import DeleteItemSchema
+# delete_filter = DeleteItemSchema(id=1)
+# await item_crud.delete(
+#     db=db,
+#     filters=delete_filter,
+#     commit=False
+# )
 ```
 
 ## Returning clause in `update`

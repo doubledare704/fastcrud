@@ -2460,9 +2460,10 @@ class FastCRUD(
     async def db_delete(
         self,
         db: AsyncSession,
+        filters: Optional[DeleteSchemaType] = None, # New parameter
         allow_multiple: bool = False,
         commit: bool = True,
-        **kwargs: Any,
+        **extra_filters: Any, # Renamed from kwargs
     ) -> None:
         """
         Deletes a record or multiple records from the database based on specified filters.
@@ -2471,21 +2472,29 @@ class FastCRUD(
 
         Args:
             db: The database session to use for the operation.
+            filters: Optional Pydantic schema instance for filtering.
             allow_multiple: If `True`, allows deleting multiple records that match the filters. If `False`, raises an error if more than one record matches the filters.
             commit: If `True`, commits the transaction immediately. Default is `True`.
-            **kwargs: Filters to identify the record(s) to delete, including advanced comparison operators for detailed querying.
+            **extra_filters: Additional keyword arguments for filtering.
 
         Returns:
             None
 
         Raises:
             MultipleResultsFound: If `allow_multiple` is `False` and more than one record matches the filters.
+            ValueError: If no filters are provided, to prevent accidental deletion of all records.
 
         Examples:
             Delete a user based on their ID:
 
             ```python
-            await user_crud.db_delete(db, id=1)
+            await user_crud.db_delete(db, extra_filters={'id': 1})
+            ```
+
+            Using a Pydantic schema for filters:
+            ```python
+            user_delete_filter = DeleteUserSchema(id=1)
+            await user_crud.db_delete(db, filters=user_delete_filter)
             ```
 
             Delete users older than 30 years and allow deletion of multiple records:
@@ -2494,7 +2503,7 @@ class FastCRUD(
             await user_crud.db_delete(
                 db,
                 allow_multiple=True,
-                age__gt=30,
+                extra_filters={'age__gt': 30},
             )
             ```
 
@@ -2504,17 +2513,33 @@ class FastCRUD(
             await user_crud.db_delete(
                 db,
                 allow_multiple=False,
-                username='unique_username',
+                extra_filters={'username': 'unique_username'},
             )
             ```
         """
-        if not allow_multiple and (total_count := await self.count(db, **kwargs)) > 1:
+        combined_filters_dict: dict[str, Any] = {}
+        if filters:
+            combined_filters_dict.update(filters.model_dump(exclude_unset=True))
+        if extra_filters:
+            combined_filters_dict.update(extra_filters)
+
+        if not combined_filters_dict:
+            raise ValueError("No filters provided for db_delete operation. This would lead to deleting all records.")
+
+        parsed_filters = self._parse_filters(**combined_filters_dict)
+
+        # Check count based on combined filters
+        total_count = await self.count(db, **combined_filters_dict)
+        if not allow_multiple and total_count > 1:
             raise MultipleResultsFound(
                 f"Expected exactly one record to delete, found {total_count}."
             )
+        # It's debatable whether we should raise NoResultFound here.
+        # Standard SQL DELETE doesn't error if no rows match.
+        # However, count > 0 is implicitly checked by the allow_multiple logic for single deletes.
+        # For multiple deletes, if total_count is 0, nothing happens, which is fine.
 
-        filters = self._parse_filters(**kwargs)
-        stmt = delete(self.model).filter(*filters)
+        stmt = delete(self.model).filter(*parsed_filters)
         await db.execute(stmt)
         if commit:
             await db.commit()
@@ -2522,10 +2547,11 @@ class FastCRUD(
     async def delete(
         self,
         db: AsyncSession,
+        filters: Optional[DeleteSchemaType] = None, # New parameter
         db_row: Optional[Row] = None,
         allow_multiple: bool = False,
         commit: bool = True,
-        **kwargs: Any,
+        **extra_filters: Any, # Renamed from kwargs
     ) -> None:
         """
         Soft deletes a record or optionally multiple records if it has an `"is_deleted"` attribute, otherwise performs a hard delete, based on specified filters.
@@ -2534,10 +2560,11 @@ class FastCRUD(
 
         Args:
             db: The database session to use for the operation.
+            filters: Optional Pydantic schema instance for filtering.
             db_row: Optional existing database row to delete. If provided, the method will attempt to delete this specific row, ignoring other filters.
             allow_multiple: If `True`, allows deleting multiple records that match the filters. If `False`, raises an error if more than one record matches the filters.
             commit: If `True`, commits the transaction immediately. Default is `True`.
-            **kwargs: Filters to identify the record(s) to delete, supporting advanced comparison operators for refined querying.
+            **extra_filters: Additional keyword arguments for filtering.
 
         Raises:
             MultipleResultsFound: If `allow_multiple` is `False` and more than one record matches the filters.
@@ -2550,7 +2577,13 @@ class FastCRUD(
             Soft delete a specific user by ID:
 
             ```python
-            await user_crud.delete(db, id=1)
+            await user_crud.delete(db, extra_filters={'id': 1})
+            ```
+
+            Using a Pydantic schema for filters:
+            ```python
+            user_delete_filter = DeleteUserSchema(id=1)
+            await user_crud.delete(db, filters=user_delete_filter)
             ```
 
             Soft delete users with account registration dates before 2020, allowing deletion of multiple records:
@@ -2559,7 +2592,7 @@ class FastCRUD(
             await user_crud.delete(
                 db,
                 allow_multiple=True,
-                creation_date__lt=datetime(2020, 1, 1),
+                extra_filters={'creation_date__lt': datetime(2020, 1, 1)},
             )
             ```
 
@@ -2569,26 +2602,39 @@ class FastCRUD(
             await user_crud.delete(
                 db,
                 allow_multiple=False,
-                email='unique@example.com',
+                extra_filters={'email': 'unique@example.com'},
             )
             ```
         """
-        filters = self._parse_filters(**kwargs)
         if db_row:
+            # If db_row is provided, prioritize it for deletion logic
             has_soft_delete = (
-                hasattr(db_row, self.is_deleted_column) and 
+                hasattr(db_row, self.is_deleted_column) and
                 hasattr(db_row, self.deleted_at_column)
             )
             if has_soft_delete:
                 setattr(db_row, self.is_deleted_column, True)
                 setattr(db_row, self.deleted_at_column, datetime.now(timezone.utc))
+                db.add(db_row) # Ensure the ORM tracks changes if db_row is a detached instance
             else:
-                await db.delete(db_row)
+                await db.delete(db_row) # Hard delete if no soft delete columns
             if commit:
                 await db.commit()
             return
 
-        total_count = await self.count(db, **kwargs)
+        # Process filters if db_row is not provided
+        combined_filters_dict: dict[str, Any] = {}
+        if filters:
+            combined_filters_dict.update(filters.model_dump(exclude_unset=True))
+        if extra_filters:
+            combined_filters_dict.update(extra_filters)
+
+        parsed_filters = self._parse_filters(**combined_filters_dict)
+        if not parsed_filters and not combined_filters_dict: # Prevent deleting all rows if no filters are provided
+             raise ValueError("No filters provided for delete operation.")
+
+
+        total_count = await self.count(db, **combined_filters_dict)
         if total_count == 0:
             raise NoResultFound("No record found to delete.")
         if not allow_multiple and total_count > 1:
@@ -2603,11 +2649,13 @@ class FastCRUD(
             update_values[self.is_deleted_column] = True
 
         if update_values:
-            update_stmt = update(self.model).filter(*filters).values(**update_values)
+            # Soft delete
+            update_stmt = update(self.model).filter(*parsed_filters).values(**update_values)
             await db.execute(update_stmt)
-
         else:
-            delete_stmt = self.model.__table__.delete().where(*filters)
+            # Hard delete
+            delete_stmt = delete(self.model).filter(*parsed_filters)
             await db.execute(delete_stmt)
+
         if commit:
             await db.commit()
