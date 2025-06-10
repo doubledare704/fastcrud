@@ -56,6 +56,7 @@ nav:
     - Advanced CRUD Usage: advanced/crud.md
     - Advanced Filtering: advanced/filters.md
     - Joining Models: advanced/joins.md
+    - Response Key Configuration: advanced/response_keys.md
   - API Reference: 
     - Overview: api/overview.md
     - FastCRUD: api/fastcrud.md
