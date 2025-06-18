@@ -50,6 +50,10 @@
   <li><b>SQLAlchemy-Utils:</b> Optional, but recommended for additional SQLAlchemy utilities.</li>
 </ul>
 
+> **⚠️ Warning:**  
+> If you are using a non-native column type (such as those from `sqlalchemy-utils`) in your models, you may encounter a `NotImplementedError`. In such cases, you need to add a `python_type` attribute to your column type. For more details and a discussion on this issue, see [this pull request](https://github.com/kvesteri/sqlalchemy-utils/pull/779).
+
+
 <h2>Installing</h2>
 
 To install, just run:
