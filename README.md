@@ -25,6 +25,8 @@
 <b>FastCRUD</b> is a Python package for <b>FastAPI</b>, offering robust async CRUD operations and flexible endpoint creation utilities, streamlined through advanced features like <b>auto-detected join</b> conditions, <b>dynamic sorting</b>, and offset and cursor <b>pagination</b>.
 </p>
 <p><b>Documentation</b>: <a href="https://benavlabs.github.io/fastcrud/">benavlabs.github.io/fastcrud</a></p>
+
+<p><i>Also take a look at <a href="https://github.com/benavlabs/crudadmin">CRUDAdmin - Modern admin interface for FastAPI</a></i></p>
 <hr>
 <h2>Features</h2>
 
@@ -47,6 +49,10 @@
   <li><b>Pydantic:</b> Version 2.4.1 or newer. FastCRUD leverages Pydantic models for data validation and serialization.</li>
   <li><b>SQLAlchemy-Utils:</b> Optional, but recommended for additional SQLAlchemy utilities.</li>
 </ul>
+
+> **⚠️ Warning:**  
+> If you are using a non-native column type (such as those from `sqlalchemy-utils`) in your models, you may encounter a `NotImplementedError`. In such cases, you need to add a `python_type` attribute to your column type. For more details and a discussion on this issue, see [this pull request](https://github.com/kvesteri/sqlalchemy-utils/pull/779).
+
 
 <h2>Installing</h2>
 
@@ -251,3 +257,8 @@ Built something with FastCRUD? We'd love to feature it! Submit your project thro
 
 Benav Labs – [benav.io](https://benav.io)
 [github.com/benavlabs](https://github.com/benavlabs/)
+
+<hr>
+<a href="https://benav.io">
+  <img src="docs/assets/benav_labs_banner.png" alt="Powered by Benav Labs - benav.io"/>
+</a>

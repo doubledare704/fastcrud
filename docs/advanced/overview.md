@@ -53,6 +53,12 @@ Learn how to add query parameters to your `get_multi` and `get_paginated` endpoi
 
 - [Filters in Endpoints](endpoint.md#defining-filters)
 
+### 9. Response Key Configuration
+
+Customize the key used for list responses in FastCRUD through the `multi_response_key` parameter. This guide covers default behavior and how to configure custom response keys for better API consistency.
+
+- [Response Key Configuration Guide](response_keys.md)
+
 ## Prerequisites
 
 Advanced usage assumes a solid understanding of the basic features and functionalities of our application. Knowledge of FastAPI, SQLAlchemy, and Pydantic is highly recommended to fully grasp the concepts discussed.

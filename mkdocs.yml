@@ -57,6 +57,7 @@ nav:
     - Advanced Filtering: advanced/filters.md
     - Dependency-Based Filtering: advanced/dependency_filtering.md
     - Joining Models: advanced/joins.md
+    - Response Key Configuration: advanced/response_keys.md
   - API Reference:
     - Overview: api/overview.md
     - FastCRUD: api/fastcrud.md

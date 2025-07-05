@@ -1,6 +1,6 @@
 [project]
 name = "fastcrud"
-version = "0.15.11"
+version = "0.15.12"
 description = "FastCRUD is a Python package for FastAPI, offering robust async CRUD operations and flexible endpoint creation utilities."
 authors = [{ name = "Igor Benav", email = "igor.magalhaes.r@gmail.com" }]
 requires-python = ">=3.9.2,<4"
@@ -24,7 +24,7 @@ classifiers = [
 dependencies = [
     "SQLAlchemy>=2.0.0,<3",
     "pydantic>=2.0.0,<3",
-    "SQLAlchemy-Utils>=0.41.1,<0.42",
+    "sqlalchemy-utils>=0.41.2,<0.42",
     "fastapi>=0.100.0",
 ]
 
