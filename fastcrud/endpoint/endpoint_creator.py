@@ -384,6 +384,10 @@ class EndpointCreator:
             items_per_page: Optional[int] = Query(
                 None, alias="itemsPerPage", description="Number of items per page"
             ),
+            sort: Optional[str] = Query(
+                None,
+                description="Sort by columns (e.g., 'name,-age')",
+            ),
             filters: dict = Depends(dynamic_filters),
         ) -> Union[dict[str, Any], PaginatedListResponse, ListResponse]:
             is_paginated = (page is not None) or (items_per_page is not None)
@@ -405,12 +409,28 @@ class EndpointCreator:
                 offset = 0
                 limit = 100
 
+            sort_columns: list[str] = []
+            sort_orders: list[str] = []
+            if sort:
+                for s in sort.split(','):
+                    s = s.strip()
+                    if not s:
+                        continue
+                    if s.startswith('-'):
+                        sort_columns.append(s[1:])
+                        sort_orders.append('desc')
+                    else:
+                        sort_columns.append(s)
+                        sort_orders.append('asc')
+
             if self.select_schema is not None:
                 crud_data = await self.crud.get_multi(
                     db,
                     offset=offset,  # type: ignore
                     limit=limit,  # type: ignore
                     schema_to_select=self.select_schema,
+                    sort_columns=sort_columns,
+                    sort_orders=sort_orders,
                     return_as_model=True,
                     **filters,
                 )
@@ -419,6 +439,8 @@ class EndpointCreator:
                     db,
                     offset=offset,  # type: ignore
                     limit=limit,  # type: ignore
+                    sort_columns=sort_columns,
+                    sort_orders=sort_orders,
                     **filters,
                 )
 
@@ -639,6 +661,7 @@ class EndpointCreator:
                     f"Read multiple {self.model.__name__} rows from the database.\n\n"
                     f"- Use page & itemsPerPage for paginated results\n"
                     f"- Use offset & limit for specific ranges\n"
+                    f"- Use sort for sorting the results (e.g., 'name,-age')\n"
                     f"- Returns paginated response when using page/itemsPerPage\n"
                     f"- Returns simple list response when using offset/limit"
                 ),

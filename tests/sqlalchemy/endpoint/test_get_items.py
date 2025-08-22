@@ -93,3 +93,37 @@ async def test_read_items_with_dict_filter_config(
 @pytest.mark.asyncio
 async def test_invalid_filter_column(invalid_filtered_client):
     pass
+
+
+@pytest.mark.asyncio
+async def test_read_items_with_sort_asc(
+    client: TestClient, async_session, test_model, test_data
+):
+    for data in test_data:
+        new_item = test_model(**data)
+        async_session.add(new_item)
+    await async_session.commit()
+
+    response = client.get("/test/get_multi?sort=name")
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert len(data) > 1
+    assert all(data[i]["name"] <= data[i + 1]["name"] for i in range(len(data) - 1))
+
+
+@pytest.mark.asyncio
+async def test_read_items_with_sort_desc(
+    client: TestClient, async_session, test_model, test_data
+):
+    for data in test_data:
+        new_item = test_model(**data)
+        async_session.add(new_item)
+    await async_session.commit()
+
+    response = client.get("/test/get_multi?sort=-name")
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert len(data) > 1
+    assert all(data[i]["name"] >= data[i + 1]["name"] for i in range(len(data) - 1))
