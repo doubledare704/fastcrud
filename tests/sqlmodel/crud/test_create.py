@@ -20,7 +20,90 @@ async def test_create_successful(async_session, test_model, create_schema):
 
 
 @pytest.mark.asyncio
-async def test_create_with_various_valid_data(async_session, test_model, create_schema):
+async def test_create_and_read_successful(
+    async_session, test_model, create_schema, read_schema
+):
+    crud = FastCRUD(test_model)
+    new_data = create_schema(name="New Record", tier_id=1)
+    created_record = await crud.create(
+        async_session, new_data, schema_to_select=read_schema
+    )
+
+    assert created_record is not None
+    assert created_record["name"] == "New Record"
+    assert created_record["tier_id"] == 1
+
+
+@pytest.mark.asyncio
+async def test_create_and_read_missing_schema(
+    async_session, test_model, create_schema
+):
+    crud = FastCRUD(test_model)
+    new_data = create_schema(name="New Record", tier_id=1)
+    with pytest.raises(ValueError):
+        await crud.create(async_session, new_data, return_as_model=True)
+
+
+@pytest.mark.asyncio
+async def test_create_and_read_successful_return_as_model(
+    async_session, test_model, create_schema, read_schema
+):
+    crud = FastCRUD(test_model)
+    new_data = create_schema(name="New Record", tier_id=1)
+    created_record = await crud.create(
+        async_session,
+        new_data,
+        schema_to_select=read_schema,
+        return_as_model=True,
+    )
+
+    assert created_record is not None
+    assert created_record.name == "New Record"
+    assert created_record.tier_id == 1
+
+
+@pytest.mark.asyncio
+async def test_create_no_commit(async_session, test_model, create_schema):
+    crud = FastCRUD(test_model)
+    new_data = create_schema(name="No Commit Record", tier_id=1)
+    await crud.create(async_session, new_data, commit=False)
+
+    await async_session.rollback()
+
+    stmt = select(test_model).where(test_model.name == "No Commit Record")
+    result = await async_session.execute(stmt)
+    fetched_record = result.scalar_one_or_none()
+
+    assert fetched_record is None
+
+
+@pytest.mark.asyncio
+async def test_create_no_commit_read(
+    async_session, test_model, create_schema, read_schema
+):
+    crud = FastCRUD(test_model)
+    new_data = create_schema(name="No Commit Read", tier_id=2)
+    created_record = await crud.create(
+        async_session, new_data, commit=False, schema_to_select=read_schema
+    )
+
+    assert created_record is not None
+    assert created_record["name"] == "No Commit Read"
+    assert created_record["tier_id"] == 2
+
+    await async_session.rollback()
+
+    stmt = select(test_model).where(test_model.name == "No Commit Read")
+    result = await async_session.execute(stmt)
+    fetched_record = result.scalar_one_or_none()
+
+    assert fetched_record is None
+
+
+@pytest.mark.asyncio
+async def test_create_with_various_valid_data(
+    async_session, test_model, create_schema
+):
     valid_data_samples = [
         {"name": "Example 1", "tier_id": 1},
         {"name": "Example 2", "tier_id": 2},
@@ -57,7 +140,9 @@ async def test_create_with_extra_fields(async_session, test_model, create_schema
 
 
 @pytest.mark.asyncio
-async def test_create_with_invalid_data_types(async_session, test_model, create_schema):
+async def test_create_with_invalid_data_types(
+    async_session, test_model, create_schema
+):
     crud = FastCRUD(test_model)
     invalid_data = {"name": 123, "tier_id": "invalid"}
     with pytest.raises(ValidationError):
