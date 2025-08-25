@@ -500,6 +500,7 @@ def multi_pk_test_create_schema():
 def test_model_custom_columns():
     return ModelWithCustomColumns
 
+
 @pytest.fixture
 def test_model_with_org():
     return ModelWithOrgTest
