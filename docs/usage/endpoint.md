@@ -85,6 +85,16 @@ app.include_router(item_router)
 
 For a comprehensive list of all available endpoints, read the [advanced section](../advanced/endpoint.md).
 
+!!! tip "Sorting Support"
+
+    The automatically created endpoints include built-in sorting functionality. You can sort results using the `sort` query parameter:
+    
+    - `GET /items?sort=name` - Sort by name (ascending)
+    - `GET /items?sort=-price` - Sort by price (descending) 
+    - `GET /items?sort=category,-price` - Sort by category ascending, then price descending
+    
+    For detailed sorting documentation, see [Sorting Results](../advanced/endpoint.md#sorting-results).
+
 ## Usage and Testing
 
 Once the application is running, you can test the automatically created endpoints using tools like Swagger UI, which FastAPI provides by default. The endpoints for creating, reading, updating, and deleting Item instances are now accessible at `/items`.

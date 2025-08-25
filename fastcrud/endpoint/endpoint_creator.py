@@ -369,7 +369,18 @@ class EndpointCreator:
         return endpoint
 
     def _read_items(self):
-        """Creates an endpoint for reading multiple items from the database."""
+        """Creates an endpoint for reading multiple items from the database.
+
+        The created endpoint supports:
+        - Pagination (using page/itemsPerPage or offset/limit)
+        - Filtering based on configured filter parameters
+        - Sorting by one or more fields (supports both ascending and descending order)
+
+        Sorting can be applied using the 'sort' query parameter:
+        - Single field ascending: ?sort=field_name
+        - Single field descending: ?sort=-field_name
+        - Multiple fields: ?sort=field1,-field2 (field1 asc, field2 desc)
+        """
         dynamic_filters = _create_dynamic_filters(self.filter_config, self.column_types)
 
         async def endpoint(
@@ -432,8 +443,6 @@ class EndpointCreator:
                     sort_columns=sort_columns,
                     sort_orders=sort_orders,
                     return_as_model=True,
-                    sort_columns=sort_columns,
-                    sort_orders=sort_orders,
                     **filters,
                 )
             else:

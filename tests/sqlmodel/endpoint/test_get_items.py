@@ -148,6 +148,7 @@ async def test_read_items_with_advanced_filters(
     assert "data" in data
     assert len(data["data"]) == 0
 
+
 @pytest.mark.asyncio
 async def test_read_items_with_sort_asc(
     client: TestClient, async_session, test_model, test_data
