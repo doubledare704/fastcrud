@@ -35,9 +35,7 @@ async def test_create_and_read_successful(
 
 
 @pytest.mark.asyncio
-async def test_create_and_read_missing_schema(
-    async_session, test_model, create_schema
-):
+async def test_create_and_read_missing_schema(async_session, test_model, create_schema):
     crud = FastCRUD(test_model)
     new_data = create_schema(name="New Record", tier_id=1)
     with pytest.raises(ValueError):
@@ -101,9 +99,7 @@ async def test_create_no_commit_read(
 
 
 @pytest.mark.asyncio
-async def test_create_with_various_valid_data(
-    async_session, test_model, create_schema
-):
+async def test_create_with_various_valid_data(async_session, test_model, create_schema):
     valid_data_samples = [
         {"name": "Example 1", "tier_id": 1},
         {"name": "Example 2", "tier_id": 2},
@@ -140,9 +136,7 @@ async def test_create_with_extra_fields(async_session, test_model, create_schema
 
 
 @pytest.mark.asyncio
-async def test_create_with_invalid_data_types(
-    async_session, test_model, create_schema
-):
+async def test_create_with_invalid_data_types(async_session, test_model, create_schema):
     crud = FastCRUD(test_model)
     invalid_data = {"name": 123, "tier_id": "invalid"}
     with pytest.raises(ValidationError):

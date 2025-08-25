@@ -93,7 +93,9 @@ async def test_get_multi_with_multiple_sort_fields(client, async_session, test_d
     for tier_id, names in tier_groups.items():
         if len(names) > 1:
             for i in range(len(names) - 1):
-                assert names[i] >= names[i + 1], f"Names in tier {tier_id} are not in descending order"
+                assert (
+                    names[i] >= names[i + 1]
+                ), f"Names in tier {tier_id} are not in descending order"
 
 
 @pytest.mark.asyncio
@@ -123,7 +125,7 @@ async def test_get_multi_with_sort_and_filtering(client, async_session, test_dat
 
     # Test sorting with filtering
     tier_id_to_filter = 1
-    response = client.get(f"/test/?sort=name")
+    response = client.get("/test/?sort=name")
     assert response.status_code == 200
 
     data = response.json()["data"]
@@ -132,4 +134,6 @@ async def test_get_multi_with_sort_and_filtering(client, async_session, test_dat
     sorted_filtered_data = sorted(filtered_data, key=lambda x: x["name"])
     assert len(filtered_response) == len(sorted_filtered_data)
     assert all(item["tier_id"] == tier_id_to_filter for item in filtered_response)
-    assert [item["name"] for item in filtered_response] == [item["name"] for item in sorted_filtered_data]
+    assert [item["name"] for item in filtered_response] == [
+        item["name"] for item in sorted_filtered_data
+    ]

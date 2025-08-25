@@ -304,8 +304,8 @@ class EndpointCreator:
                 select_schema, response_key
             )
         else:
-            self.list_response_model = None # type: ignore
-            self.paginated_response_model = None # type: ignore
+            self.list_response_model = None  # type: ignore
+            self.paginated_response_model = None  # type: ignore
 
     def _validate_filter_config(self, filter_config: FilterConfig) -> None:
         model_columns = self.crud.model_col_names
@@ -385,7 +385,8 @@ class EndpointCreator:
                 None, alias="itemsPerPage", description="Number of items per page"
             ),
             sort: Optional[str] = Query(
-                None, description="Sort field(s) in format: 'field1,-field2' (prefix with - for descending)"
+                None,
+                description="Sort results by one or more fields. Format: 'field1,-field2' where '-' prefix indicates descending order. Example: 'name' (ascending), '-age' (descending), 'name,-age' (name ascending, then age descending).",
             ),
             filters: dict = Depends(dynamic_filters),
         ) -> Union[dict[str, Any], PaginatedListResponse, ListResponse]:
@@ -412,16 +413,16 @@ class EndpointCreator:
             sort_columns = None
             sort_orders = None
             if sort:
-                sort_fields = sort.split(',')
+                sort_fields = sort.split(",")
                 sort_columns = []
                 sort_orders = []
                 for field in sort_fields:
-                    if field.startswith('-'):
+                    if field.startswith("-"):
                         sort_columns.append(field[1:])
-                        sort_orders.append('desc')
+                        sort_orders.append("desc")
                     else:
                         sort_columns.append(field)
-                        sort_orders.append('asc')
+                        sort_orders.append("asc")
 
             if self.select_schema is not None:
                 crud_data = await self.crud.get_multi(
@@ -659,10 +660,14 @@ class EndpointCreator:
                 response_model=response_model,
                 description=(
                     f"Read multiple {self.model.__name__} rows from the database.\n\n"
-                    f"- Use page & itemsPerPage for paginated results\n"
-                    f"- Use offset & limit for specific ranges\n"
-                    f"- Use sort parameter for sorting results (e.g., 'name' for ascending, '-name' for descending)\n"
-                    f"- Multiple sort fields can be specified with comma separation (e.g., 'name,-age')\n"
+                    f"**Pagination Options:**\n"
+                    f"- Use `page` & `itemsPerPage` for paginated results\n"
+                    f"- Use `offset` & `limit` for specific ranges\n\n"
+                    f"**Sorting:**\n"
+                    f"- Use `sort` parameter to sort results by one or more fields\n"
+                    f"- Format: `field1,-field2` (comma-separated, `-` prefix for descending)\n"
+                    f"- Examples: `name` (ascending), `-age` (descending), `name,-age` (mixed)\n\n"
+                    f"**Response Format:**\n"
                     f"- Returns paginated response when using page/itemsPerPage\n"
                     f"- Returns simple list response when using offset/limit"
                 ),
