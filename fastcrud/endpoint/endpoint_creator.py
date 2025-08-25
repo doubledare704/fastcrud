@@ -304,8 +304,8 @@ class EndpointCreator:
                 select_schema, response_key
             )
         else:
-            self.list_response_model = None # type: ignore
-            self.paginated_response_model = None # type: ignore
+            self.list_response_model = None  # type: ignore
+            self.paginated_response_model = None  # type: ignore
 
     def _validate_filter_config(self, filter_config: FilterConfig) -> None:
         model_columns = self.crud.model_col_names
@@ -386,7 +386,7 @@ class EndpointCreator:
             ),
             sort: Optional[str] = Query(
                 None,
-                description="Sort by columns (e.g., 'name,-age')",
+                description="Sort results by one or more fields. Format: 'field1,-field2' where '-' prefix indicates descending order. Example: 'name' (ascending), '-age' (descending), 'name,-age' (name ascending, then age descending).",
             ),
             filters: dict = Depends(dynamic_filters),
         ) -> Union[dict[str, Any], PaginatedListResponse, ListResponse]:
@@ -412,16 +412,16 @@ class EndpointCreator:
             sort_columns: list[str] = []
             sort_orders: list[str] = []
             if sort:
-                for s in sort.split(','):
+                for s in sort.split(","):
                     s = s.strip()
                     if not s:
                         continue
-                    if s.startswith('-'):
+                    if s.startswith("-"):
                         sort_columns.append(s[1:])
-                        sort_orders.append('desc')
+                        sort_orders.append("desc")
                     else:
                         sort_columns.append(s)
-                        sort_orders.append('asc')
+                        sort_orders.append("asc")
 
             if self.select_schema is not None:
                 crud_data = await self.crud.get_multi(
@@ -432,6 +432,8 @@ class EndpointCreator:
                     sort_columns=sort_columns,
                     sort_orders=sort_orders,
                     return_as_model=True,
+                    sort_columns=sort_columns,
+                    sort_orders=sort_orders,
                     **filters,
                 )
             else:
@@ -659,9 +661,14 @@ class EndpointCreator:
                 response_model=response_model,
                 description=(
                     f"Read multiple {self.model.__name__} rows from the database.\n\n"
-                    f"- Use page & itemsPerPage for paginated results\n"
-                    f"- Use offset & limit for specific ranges\n"
-                    f"- Use sort for sorting the results (e.g., 'name,-age')\n"
+                    f"**Pagination Options:**\n"
+                    f"- Use `page` & `itemsPerPage` for paginated results\n"
+                    f"- Use `offset` & `limit` for specific ranges\n\n"
+                    f"**Sorting:**\n"
+                    f"- Use `sort` parameter to sort results by one or more fields\n"
+                    f"- Format: `field1,-field2` (comma-separated, `-` prefix for descending)\n"
+                    f"- Examples: `name` (ascending), `-age` (descending), `name,-age` (mixed)\n\n"
+                    f"**Response Format:**\n"
                     f"- Returns paginated response when using page/itemsPerPage\n"
                     f"- Returns simple list response when using offset/limit"
                 ),
