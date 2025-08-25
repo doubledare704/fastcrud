@@ -3,13 +3,13 @@ from pydantic import BaseModel
 from fastcrud.paginated.schemas import create_list_response, create_paginated_response
 
 
-class TestSchema(BaseModel):
+class SampleSchema(BaseModel):
     name: str
     value: int
 
 
 def test_create_list_response_default_key():
-    ResponseModel = create_list_response(TestSchema)
+    ResponseModel = create_list_response(SampleSchema)
     
     # Test model creation
     assert ResponseModel.__name__ == "DynamicListResponse"
@@ -27,7 +27,7 @@ def test_create_list_response_default_key():
 
 
 def test_create_list_response_custom_key():
-    ResponseModel = create_list_response(TestSchema, response_key="items")
+    ResponseModel = create_list_response(SampleSchema, response_key="items")
     
     # Test model creation
     assert ResponseModel.__name__ == "DynamicListResponse"
@@ -41,7 +41,7 @@ def test_create_list_response_custom_key():
 
 
 def test_create_list_response_validation():
-    ResponseModel = create_list_response(TestSchema)
+    ResponseModel = create_list_response(SampleSchema)
     
     # Test invalid data
     with pytest.raises(ValueError):
@@ -49,7 +49,7 @@ def test_create_list_response_validation():
 
 
 def test_create_paginated_response_default_key():
-    ResponseModel = create_paginated_response(TestSchema)
+    ResponseModel = create_paginated_response(SampleSchema)
     
     # Test model creation
     assert ResponseModel.__name__ == "DynamicPaginatedResponse"
@@ -72,7 +72,7 @@ def test_create_paginated_response_default_key():
 
 
 def test_create_paginated_response_custom_key():
-    ResponseModel = create_paginated_response(TestSchema, response_key="items")
+    ResponseModel = create_paginated_response(SampleSchema, response_key="items")
     
     # Test with valid data
     response = ResponseModel(
@@ -88,7 +88,7 @@ def test_create_paginated_response_custom_key():
 
 
 def test_create_paginated_response_optional_fields():
-    ResponseModel = create_paginated_response(TestSchema)
+    ResponseModel = create_paginated_response(SampleSchema)
     
     # Test with minimal required fields
     response = ResponseModel(
@@ -102,7 +102,7 @@ def test_create_paginated_response_optional_fields():
 
 
 def test_create_paginated_response_validation():
-    ResponseModel = create_paginated_response(TestSchema)
+    ResponseModel = create_paginated_response(SampleSchema)
     
     # Test missing required fields
     with pytest.raises(ValueError):
@@ -121,7 +121,7 @@ def test_create_paginated_response_validation():
 
 
 def test_create_paginated_response_empty_list():
-    ResponseModel = create_paginated_response(TestSchema)
+    ResponseModel = create_paginated_response(SampleSchema)
     
     response = ResponseModel(
         data=[],
