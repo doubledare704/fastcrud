@@ -778,8 +778,13 @@ class FastCRUD(
         return stmt
 
     async def create(
-        self, db: AsyncSession, object: CreateSchemaType, commit: bool = True
-    ) -> ModelType:
+        self,
+        db: AsyncSession,
+        object: CreateSchemaType,
+        commit: bool = True,
+        schema_to_select: Optional[type[SelectSchemaType]] = None,
+        return_as_model: bool = False,
+    ) -> Union[ModelType, SelectSchemaType, dict, None]:
         """
         Create a new record in the database.
 
@@ -787,15 +792,40 @@ class FastCRUD(
             db: The SQLAlchemy async session.
             object: The Pydantic schema containing the data to be saved.
             commit: If `True`, commits the transaction immediately. Default is `True`.
+            schema_to_select: Pydantic schema for selecting specific columns.
+            return_as_model: If `True`, returns data as an instance of `schema_to_select`.
 
         Returns:
-            The created database object.
+            The created database object, or a Pydantic model if `schema_to_select` is provided.
         """
+        if return_as_model and not schema_to_select:
+            raise ValueError(
+                "schema_to_select must be provided when return_as_model is True."
+            )
+
         object_dict = object.model_dump()
         db_object: ModelType = self.model(**object_dict)
         db.add(db_object)
+
         if commit:
             await db.commit()
+            await db.refresh(db_object)
+        else:
+            await db.flush()
+            await db.refresh(db_object)
+
+        if schema_to_select:
+            if not self._primary_keys:
+                raise ValueError("Cannot fetch created record without a primary key.")
+
+            pks = {pk.name: getattr(db_object, pk.name) for pk in self._primary_keys}
+            return await self.get(
+                db=db,
+                schema_to_select=schema_to_select,
+                return_as_model=return_as_model,
+                **pks,
+            )
+
         return db_object
 
     async def select(

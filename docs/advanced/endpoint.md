@@ -41,7 +41,11 @@ FastCRUD automates the creation of CRUD (Create, Read, Update, Delete) endpoints
     - `limit` (optional): The maximum number of items to return.
     - `page` (optional): The page number, starting from 1.
     - `itemsPerPage` (optional): The number of items per page.
-- **Example Request**: `GET /items?offset=3&limit=4`.
+    - `sort` (optional): Sort results by one or more fields. Format: `field1,-field2` where `-` prefix indicates descending order.
+- **Example Requests**: 
+    - `GET /items?offset=3&limit=4` (pagination)
+    - `GET /items?sort=name` (sort by name ascending)
+    - `GET /items?sort=-price,name` (sort by price descending, then name ascending)
 - **Example Return**:
 ```javascript
 {
@@ -671,6 +675,63 @@ try:
 except ValueError as e:
     print(e)  # Output: Invalid filter column 'non_existent_column': not found in model
 ```
+
+## Sorting Results
+
+FastCRUD automatically provides sorting functionality for the "read multiple" endpoint through the `sort` query parameter. This allows clients to control the ordering of returned results.
+
+### Basic Sorting
+
+Sort by a single field in ascending order:
+```http
+GET /items?sort=name
+```
+
+Sort by a single field in descending order (use `-` prefix):
+```http
+GET /items?sort=-price
+```
+
+### Multi-field Sorting
+
+Sort by multiple fields by separating them with commas:
+```http
+GET /items?sort=category,name
+```
+
+Mix ascending and descending orders:
+```http
+GET /items?sort=category,-price,name
+```
+This sorts by:
+1. `category` (ascending)
+2. `price` (descending) 
+3. `name` (ascending)
+
+### Sorting Format
+
+The sort parameter accepts the following format:
+- Field names separated by commas: `field1,field2,field3`
+- Prefix with `-` for descending order: `-field1,field2,-field3`
+- No spaces around commas
+- Field names must match your model's column names
+
+### Error Handling
+
+If you specify an invalid column name that doesn't exist in your model, FastCRUD will return a 400 Bad Request error with details about the invalid column.
+
+### Combining with Other Parameters
+
+Sorting can be combined with pagination and filtering:
+
+```http
+GET /items?sort=-created_at&page=1&itemsPerPage=10&category=Books
+```
+
+This example:
+- Sorts by `created_at` in descending order (newest first)
+- Returns the first page with 10 items per page  
+- Filters for items in the "Books" category
 
 ## Conclusion
 
