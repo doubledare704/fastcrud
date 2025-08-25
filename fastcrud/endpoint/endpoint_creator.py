@@ -369,7 +369,18 @@ class EndpointCreator:
         return endpoint
 
     def _read_items(self):
-        """Creates an endpoint for reading multiple items from the database."""
+        """Creates an endpoint for reading multiple items from the database.
+
+        The created endpoint supports:
+        - Pagination (using page/itemsPerPage or offset/limit)
+        - Filtering based on configured filter parameters
+        - Sorting by one or more fields (supports both ascending and descending order)
+
+        Sorting can be applied using the 'sort' query parameter:
+        - Single field ascending: ?sort=field_name
+        - Single field descending: ?sort=-field_name
+        - Multiple fields: ?sort=field1,-field2 (field1 asc, field2 desc)
+        """
         dynamic_filters = _create_dynamic_filters(self.filter_config, self.column_types)
 
         async def endpoint(
@@ -409,19 +420,18 @@ class EndpointCreator:
                 offset = 0
                 limit = 100
 
-            # Parse sort parameter
-            sort_columns = None
-            sort_orders = None
+            sort_columns: list[str] = []
+            sort_orders: list[str] = []
             if sort:
-                sort_fields = sort.split(",")
-                sort_columns = []
-                sort_orders = []
-                for field in sort_fields:
-                    if field.startswith("-"):
-                        sort_columns.append(field[1:])
+                for s in sort.split(","):
+                    s = s.strip()
+                    if not s:
+                        continue
+                    if s.startswith("-"):
+                        sort_columns.append(s[1:])
                         sort_orders.append("desc")
                     else:
-                        sort_columns.append(field)
+                        sort_columns.append(s)
                         sort_orders.append("asc")
 
             if self.select_schema is not None:
@@ -430,9 +440,9 @@ class EndpointCreator:
                     offset=offset,  # type: ignore
                     limit=limit,  # type: ignore
                     schema_to_select=self.select_schema,
-                    return_as_model=True,
                     sort_columns=sort_columns,
                     sort_orders=sort_orders,
+                    return_as_model=True,
                     **filters,
                 )
             else:
