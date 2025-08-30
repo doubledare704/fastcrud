@@ -1,7 +1,6 @@
 import inspect
 from uuid import UUID
 from typing import Optional, Union, Annotated, Sequence, Callable, TypeVar, Any
-import re
 
 from pydantic import BaseModel, Field
 from pydantic.functional_validators import field_validator
@@ -11,7 +10,6 @@ from sqlalchemy import Column, inspect as sa_inspect
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.types import TypeEngine
 from sqlalchemy.sql.elements import KeyedColumnElement
-from sqlalchemy.orm import RelationshipProperty
 
 from fastcrud.types import ModelType
 

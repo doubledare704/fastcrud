@@ -7,9 +7,7 @@ from tests.sqlalchemy.conftest import (
     Company,
     UserModel,
     CompanySchema,
-    CompanyRead,
     UserModelSchema,
-    UserModelRead,
 )
 
 
