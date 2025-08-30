@@ -1383,7 +1383,7 @@ class FastCRUD(
             joined_filters_info contains information about required joins
         """
         regular_filters = {}
-        joined_filters_info = {}
+        joined_filters_info: dict[str, dict[str, Any]] = {}
 
         for key, value in kwargs.items():
             if "." in key:
