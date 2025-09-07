@@ -230,7 +230,8 @@ def _create_dynamic_filters(
         filtered_params = {}
         for key, value in kwargs.items():
             if value is not None:
-                parse_func = column_types.get(key)
+                key_without_op = key.rsplit("__", 1)[0]
+                parse_func = column_types.get(key_without_op)
                 if parse_func:
                     try:
                         filtered_params[key] = parse_func(value)
