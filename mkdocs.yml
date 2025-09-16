@@ -47,30 +47,30 @@ nav:
   - Quick-Start: quick-start.md
   - Using SQLModel: sqlmodel.md
   - Usage:
-    - Overview: usage/overview.md
-    - Automatic Endpoints: usage/endpoint.md
-    - CRUD Utilities: usage/crud.md
+      - Overview: usage/overview.md
+      - Automatic Endpoints: usage/endpoint.md
+      - CRUD Utilities: usage/crud.md
   - Advanced:
-    - Overview: advanced/overview.md
-    - Custom Endpoints: advanced/endpoint.md
-    - Advanced CRUD Usage: advanced/crud.md
-    - Advanced Filtering: advanced/filters.md
-    - Dependency-Based Filtering: advanced/dependency_filtering.md
-    - Joining Models: advanced/joins.md
-    - Response Key Configuration: advanced/response_keys.md
+      - Overview: advanced/overview.md
+      - Custom Endpoints: advanced/endpoint.md
+      - Advanced CRUD Usage: advanced/crud.md
+      - Advanced Filtering: advanced/filters.md
+      - Dependency-Based Filtering: advanced/dependency_filtering.md
+      - Joining Models: advanced/joins.md
+      - Response Key Configuration: advanced/response_keys.md
   - API Reference:
-    - Overview: api/overview.md
-    - FastCRUD: api/fastcrud.md
-    - EndpointCreator: api/endpoint_creator.md
-    - crud_router: api/crud_router.md
-    - paginated: api/paginated.md
+      - Overview: api/overview.md
+      - FastCRUD: api/fastcrud.md
+      - EndpointCreator: api/endpoint_creator.md
+      - crud_router: api/crud_router.md
+      - paginated: api/paginated.md
   - Showcase: showcase.md
   - Community:
-    - Overview: community/overview.md
-    - Contributing: community/CONTRIBUTING.md
-    - Showcase Submission: community/showcase_submission.md
-    - Code of Conduct: community/CODE_OF_CONDUCT.md
-    - License: community/LICENSE.md
+      - Overview: community/overview.md
+      - Contributing: community/CONTRIBUTING.md
+      - Showcase Submission: community/showcase_submission.md
+      - Code of Conduct: community/CODE_OF_CONDUCT.md
+      - License: community/LICENSE.md
   - Changelog: changelog.md
 
 markdown_extensions:
@@ -90,3 +90,8 @@ markdown_extensions:
 repo_name: igorbenav/fastcrud
 repo_url: https://github.com/igorbenav/fastcrud
 edit_uri: edit/main/docs/
+
+extra:
+  analytics:
+    provider: google
+    property: !ENV [GOOGLE_ANALYTICS_KEY, ""]
