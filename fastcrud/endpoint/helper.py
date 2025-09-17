@@ -301,7 +301,8 @@ def _create_dynamic_filters(
         for param_name, value in kwargs.items():
             if value is not None:
                 original_key = param_to_filter_key.get(param_name, param_name)
-                parse_func = column_types.get(original_key)
+                key_without_op = original_key.rsplit("__", 1)[0]
+                parse_func = column_types.get(key_without_op)
                 if parse_func:
                     try:
                         filtered_params[original_key] = parse_func(value)
