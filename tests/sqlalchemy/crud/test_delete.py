@@ -256,7 +256,7 @@ async def test_db_delete_with_filters_schema(async_session, test_data_tier, tier
 
 @pytest.mark.asyncio
 async def test_delete_with_combined_filters(async_session, test_data, test_model):
-    """Test delete method with both filters schema and extra_filters."""
+    """Test delete method with both filters schema and kwargs."""
     for item in test_data:
         async_session.add(test_model(**item))
     await async_session.commit()
@@ -268,7 +268,7 @@ async def test_delete_with_combined_filters(async_session, test_data, test_model
     # Create delete filter schema with partial filters
     delete_filters = DeleteTestSchema(id=some_existing_id)
 
-    # Add additional filters via extra_filters
+    # Add additional filters via kwargs
     await crud.delete(db=async_session, filters=delete_filters, name=some_existing_name)
 
     soft_deleted_record = await async_session.execute(
@@ -281,7 +281,7 @@ async def test_delete_with_combined_filters(async_session, test_data, test_model
 
 @pytest.mark.asyncio
 async def test_db_delete_with_combined_filters(async_session, test_data_tier, tier_model):
-    """Test db_delete method with both filters schema and extra_filters."""
+    """Test db_delete method with both filters schema and kwargs."""
     for tier_item in test_data_tier:
         async_session.add(tier_model(**tier_item))
     await async_session.commit()
@@ -293,7 +293,7 @@ async def test_db_delete_with_combined_filters(async_session, test_data_tier, ti
     # Create delete filter schema with partial filters
     delete_filters = DeleteTierSchema(id=some_existing_id)
 
-    # Add additional filters via extra_filters
+    # Add additional filters via kwargs
     await crud.db_delete(db=async_session, filters=delete_filters, name=some_existing_name)
 
     deleted_record = await async_session.execute(
@@ -363,8 +363,8 @@ async def test_db_delete_empty_filters_schema_raises_value_error(async_session, 
 
 # Tests for backward compatibility
 @pytest.mark.asyncio
-async def test_delete_backward_compatibility_with_extra_filters(async_session, test_data, test_model):
-    """Test that delete method still works with only extra_filters (backward compatibility)."""
+async def test_delete_backward_compatibility_with_kwargs(async_session, test_data, test_model):
+    """Test that delete method still works with only kwargs (backward compatibility)."""
     for item in test_data:
         async_session.add(test_model(**item))
     await async_session.commit()
@@ -372,7 +372,7 @@ async def test_delete_backward_compatibility_with_extra_filters(async_session, t
     crud = FastCRUD(test_model)
     some_existing_id = test_data[0]["id"]
 
-    # Use only extra_filters (old way)
+    # Use only kwargs (old way)
     await crud.delete(db=async_session, id=some_existing_id)
 
     soft_deleted_record = await async_session.execute(
@@ -384,8 +384,8 @@ async def test_delete_backward_compatibility_with_extra_filters(async_session, t
 
 
 @pytest.mark.asyncio
-async def test_db_delete_backward_compatibility_with_extra_filters(async_session, test_data_tier, tier_model):
-    """Test that db_delete method still works with only extra_filters (backward compatibility)."""
+async def test_db_delete_backward_compatibility_with_kwargs(async_session, test_data_tier, tier_model):
+    """Test that db_delete method still works with only kwargs (backward compatibility)."""
     for tier_item in test_data_tier:
         async_session.add(tier_model(**tier_item))
     await async_session.commit()
@@ -393,7 +393,7 @@ async def test_db_delete_backward_compatibility_with_extra_filters(async_session
     crud = FastCRUD(tier_model)
     some_existing_id = test_data_tier[0]["id"]
 
-    # Use only extra_filters (old way)
+    # Use only kwargs (old way)
     await crud.db_delete(db=async_session, id=some_existing_id)
 
     deleted_record = await async_session.execute(

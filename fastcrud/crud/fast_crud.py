@@ -2451,7 +2451,7 @@ class FastCRUD(
         out = dict(result._mapping)
         if not return_as_model:
             return out
-        if not schema_to_select:  # pragma: no cover
+        if not schema_to_select:
             raise ValueError(
                 "schema_to_select must be provided when return_as_model is True."
             )
@@ -2468,12 +2468,12 @@ class FastCRUD(
         if not return_as_model:
             return {"data": data}
 
-        if not schema_to_select:  # pragma: no cover
+        if not schema_to_select:
             raise ValueError("schema_to_select required when return_as_model is True")
 
         try:
             return {"data": [schema_to_select(**row) for row in data]}
-        except ValidationError as e:  # pragma: no cover
+        except ValidationError as e:
             raise ValueError(
                 f"Schema validation error ({schema_to_select.__name__}): {e}"
             )
@@ -2484,7 +2484,7 @@ class FastCRUD(
         allow_multiple: bool = False,
         commit: bool = True,
         filters: Optional[DeleteSchemaType] = None,
-        **extra_filters: Any,
+        **kwargs: Any,
     ) -> None:
         """
         Deletes a record or multiple records from the database based on specified filters.
@@ -2496,7 +2496,7 @@ class FastCRUD(
             allow_multiple: If `True`, allows deleting multiple records that match the filters. If `False`, raises an error if more than one record matches the filters.
             commit: If `True`, commits the transaction immediately. Default is `True`.
             filters: Optional Pydantic schema instance containing filters to identify the record(s) to delete.
-            **extra_filters: Additional filters to identify the record(s) to delete, including advanced comparison operators for detailed querying.
+            **kwargs: Additional filters to identify the record(s) to delete, including advanced comparison operators for detailed querying.
 
         Returns:
             None
@@ -2506,7 +2506,7 @@ class FastCRUD(
             MultipleResultsFound: If `allow_multiple` is `False` and more than one record matches the filters.
 
         Examples:
-            Delete a user based on their ID using extra_filters:
+            Delete a user based on their ID using kwargs:
 
             ```python
             await user_crud.db_delete(db, id=1)
@@ -2539,7 +2539,7 @@ class FastCRUD(
             )
             ```
 
-            Combine schema filters with extra filters:
+            Combine schema filters with kwargs:
 
             ```python
             delete_filters = DeleteUserSchema(status='inactive')
@@ -2551,13 +2551,12 @@ class FastCRUD(
             )
             ```
         """
-        # Merge filters from schema and extra_filters
         combined_filters = {}
         if filters:
             combined_filters.update(filters.model_dump(exclude_unset=True))
-        combined_filters.update(extra_filters)
+        combined_filters.update(kwargs)
 
-        # Add safeguard to prevent accidental deletion of all records
+
         if not combined_filters:
             raise ValueError("No filters provided. To prevent accidental deletion of all records, at least one filter must be specified.")
 
@@ -2579,7 +2578,7 @@ class FastCRUD(
         allow_multiple: bool = False,
         commit: bool = True,
         filters: Optional[DeleteSchemaType] = None,
-        **extra_filters: Any,
+        **kwargs: Any,
     ) -> None:
         """
         Soft deletes a record or optionally multiple records if it has an `"is_deleted"` attribute, otherwise performs a hard delete, based on specified filters.
@@ -2592,7 +2591,7 @@ class FastCRUD(
             allow_multiple: If `True`, allows deleting multiple records that match the filters. If `False`, raises an error if more than one record matches the filters.
             commit: If `True`, commits the transaction immediately. Default is `True`.
             filters: Optional Pydantic schema instance containing filters to identify the record(s) to delete.
-            **extra_filters: Additional filters to identify the record(s) to delete, supporting advanced comparison operators for refined querying.
+            **kwargs: Additional filters to identify the record(s) to delete, supporting advanced comparison operators for refined querying.
 
         Raises:
             ValueError: If no filters are provided and db_row is None (to prevent accidental deletion of all records).
@@ -2603,7 +2602,7 @@ class FastCRUD(
             None
 
         Examples:
-            Soft delete a specific user by ID using extra_filters:
+            Soft delete a specific user by ID using kwargs:
 
             ```python
             await user_crud.delete(db, id=1)
@@ -2648,11 +2647,10 @@ class FastCRUD(
             )
             ```
         """
-        # Merge filters from schema and extra_filters
         combined_filters = {}
         if filters:
             combined_filters.update(filters.model_dump(exclude_unset=True))
-        combined_filters.update(extra_filters)
+        combined_filters.update(kwargs)
 
         if db_row:
             has_soft_delete = hasattr(db_row, self.is_deleted_column) and hasattr(
@@ -2667,7 +2665,6 @@ class FastCRUD(
                 await db.commit()
             return
 
-        # Add safeguard to prevent accidental deletion of all records
         if not combined_filters:
             raise ValueError("No filters provided. To prevent accidental deletion of all records, at least one filter must be specified.")
 

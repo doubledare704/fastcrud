@@ -66,7 +66,7 @@ def test_delete_method_typing() -> None:
     import inspect
     sig = inspect.signature(crud.delete)
     assert 'filters' in sig.parameters
-    assert 'extra_filters' in sig.parameters
+    assert 'kwargs' in sig.parameters
 
     # Test that filters parameter has correct type annotation
     filters_param = sig.parameters['filters']
@@ -81,7 +81,7 @@ def test_db_delete_method_typing() -> None:
     import inspect
     sig = inspect.signature(crud.db_delete)
     assert 'filters' in sig.parameters
-    assert 'extra_filters' in sig.parameters
+    assert 'kwargs' in sig.parameters
 
     # Test that filters parameter has correct type annotation
     filters_param = sig.parameters['filters']
