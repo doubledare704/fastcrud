@@ -2635,7 +2635,7 @@ class FastCRUD(
             )
             ```
 
-            Combine schema filters with extra filters:
+            Combine schema filters with kwargs:
 
             ```python
             delete_filters = DeleteUserSchema(status='inactive')
