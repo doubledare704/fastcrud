@@ -315,18 +315,15 @@ class EndpointCreator:
             if callable(value):
                 continue
 
-            # Check if this is a joined model filter
             if filter_config.is_joined_filter(key):
                 try:
                     relationship_path, final_field, operator = filter_config.parse_joined_filter(key)
 
-                    # Validate the operator if present
                     if operator and operator not in supported_filters:
                         raise ValueError(
                             f"Invalid filter op '{operator}': following filter ops are allowed: {supported_filters.keys()}"
                         )
 
-                    # Validate the joined filter path
                     if not _validate_joined_filter_path(self.model, relationship_path, final_field):
                         raise ValueError(
                             f"Invalid joined filter '{key}': relationship path {'.'.join(relationship_path + [final_field])} not found in model '{self.model.__name__}'"
@@ -334,7 +331,6 @@ class EndpointCreator:
                 except ValueError as e:
                     raise ValueError(f"Invalid joined filter '{key}': {str(e)}")
             else:
-                # Handle regular (non-joined) filters
                 if "__" in key:
                     field_name, op = key.rsplit("__", 1)
                     if op not in supported_filters:

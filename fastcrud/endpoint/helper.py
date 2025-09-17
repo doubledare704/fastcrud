@@ -78,7 +78,6 @@ class FilterConfig(BaseModel):
 
     def is_joined_filter(self, filter_key: str) -> bool:
         """Check if a filter key represents a joined model filter (contains dot notation)."""
-        # Remove operator suffix if present (e.g., "user.company.name__eq" -> "user.company.name")
         field_path = filter_key.split("__")[0] if "__" in filter_key else filter_key
         return "." in field_path
 
@@ -93,13 +92,11 @@ class FilterConfig(BaseModel):
             tuple: (relationship_path, final_field, operator)
             e.g., (["user", "company"], "name", "eq") or (["user", "company"], "name", None)
         """
-        # Split by operator if present
         if "__" in filter_key:
             field_path, operator = filter_key.rsplit("__", 1)
         else:
             field_path, operator = filter_key, None
 
-        # Split the field path by dots
         path_parts = field_path.split(".")
         if len(path_parts) < 2:
             raise ValueError(f"Invalid joined filter format: {filter_key}")
@@ -124,13 +121,11 @@ def _validate_joined_filter_path(model: ModelType, relationship_path: list[str],
     """
     current_model = model
 
-    # Traverse the relationship path
     for relationship_name in relationship_path:
         inspector = sa_inspect(current_model)
         if inspector is None:
             return False
 
-        # Check if the relationship exists
         if not hasattr(inspector, 'relationships'):
             return False
 
@@ -138,15 +133,12 @@ def _validate_joined_filter_path(model: ModelType, relationship_path: list[str],
         if relationship is None:
             return False
 
-        # Get the target model for this relationship
         current_model = relationship.mapper.class_
 
-    # Check if the final field exists in the target model
     final_inspector = sa_inspect(current_model)
     if final_inspector is None:
         return False
 
-    # Check if the field exists in the target model's columns
     return hasattr(current_model, final_field) and hasattr(final_inspector.mapper, 'columns') and final_field in [col.name for col in final_inspector.mapper.columns]
 
 
@@ -297,7 +289,6 @@ def _create_dynamic_filters(
     if filter_config is None:
         return lambda: {}
 
-    # Create a mapping from parameter names back to original filter keys
     param_to_filter_key = {}
     for original_key in filter_config.filters.keys():
         param_name = original_key.replace(".", "_")
@@ -309,7 +300,6 @@ def _create_dynamic_filters(
         filtered_params = {}
         for param_name, value in kwargs.items():
             if value is not None:
-                # Map parameter name back to original filter key
                 original_key = param_to_filter_key.get(param_name, param_name)
                 parse_func = column_types.get(original_key)
                 if parse_func:
@@ -323,8 +313,6 @@ def _create_dynamic_filters(
 
     params = []
     for key, value in filter_config.filters.items():
-        # Convert joined model filter keys to valid Python parameter names
-        # Replace dots with underscores for the parameter name
         param_name = key.replace(".", "_")
 
         if callable(value):
@@ -336,7 +324,6 @@ def _create_dynamic_filters(
                 )
             )
         else:
-            # Use the original key (with dots) as the alias for the query parameter
             params.append(
                 inspect.Parameter(
                     param_name,
