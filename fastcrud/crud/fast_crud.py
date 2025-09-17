@@ -514,6 +514,7 @@ class FastCRUD(
         Args:
             model: The model to apply filters to. Defaults to self.model
             **kwargs: Filter arguments in the format field_name__operator=value
+                     or joined_model.field_name__operator=value for joined model filters
 
         Returns:
             List of SQLAlchemy filter conditions
@@ -525,11 +526,20 @@ class FastCRUD(
             filters.extend(self._handle_multi_field_or_filter(model, kwargs.pop("_or")))
 
         for key, value in kwargs.items():
+            if "." in key:
+                filters.extend(self._handle_joined_filter(key, value))
+                continue
+
             if "__" not in key:
                 filters.extend(self._handle_simple_filter(model, key, value))
                 continue
 
             field_name, operator = key.rsplit("__", 1)
+
+            if "." in field_name:
+                filters.extend(self._handle_joined_filter(key, value))
+                continue
+
             model_column = self._get_column(model, field_name)
 
             if operator == "or":
@@ -647,10 +657,43 @@ class FastCRUD(
                     )
                     or_conditions.append(condition)
             except ValueError:
-                # TODO: log warning
                 continue
 
         return [or_(*or_conditions)] if or_conditions else []
+
+    def _handle_joined_filter(self, filter_key: str, value: Any) -> list[ColumnElement]:
+        """Handle joined model filters (e.g., 'user.company.name' or 'user.company.name__eq')."""
+        if "__" in filter_key:
+            field_path, operator = filter_key.rsplit("__", 1)
+        else:
+            field_path, operator = filter_key, None
+
+        path_parts = field_path.split(".")
+        if len(path_parts) < 2:
+            raise ValueError(f"Invalid joined filter format: {filter_key}")
+
+        relationship_path = path_parts[:-1]
+        final_field = path_parts[-1]
+
+        current_model = self.model
+        for relationship_name in relationship_path:
+            relationship = getattr(current_model, relationship_name, None)
+            if relationship is None:
+                raise ValueError(f"Relationship '{relationship_name}' not found in model '{current_model.__name__}'")
+
+            if hasattr(relationship.property, 'mapper'):
+                current_model = relationship.property.mapper.class_
+            else:
+                raise ValueError(f"Invalid relationship '{relationship_name}' in model '{current_model.__name__}'")
+
+        target_column = getattr(current_model, final_field, None)
+        if target_column is None:
+            raise ValueError(f"Column '{final_field}' not found in model '{current_model.__name__}'")
+
+        if operator is None:
+            return [target_column == value]
+        else:
+            return self._handle_standard_filter(target_column, operator, value)
 
     def _get_column(
         self, model: Union[type[ModelType], AliasedClass], field_name: str
@@ -1319,6 +1362,41 @@ class FastCRUD(
 
         return total_count
 
+    def _detect_joined_filters(self, **kwargs: Any) -> tuple[dict[str, Any], dict[str, Any]]:
+        """
+        Detect and separate joined model filters from regular filters.
+
+        Returns:
+            tuple: (regular_filters, joined_filters_info)
+            joined_filters_info contains information about required joins
+        """
+        regular_filters = {}
+        joined_filters_info: dict[str, dict[str, Any]] = {}
+
+        for key, value in kwargs.items():
+            if "." in key:
+                if "__" in key:
+                    field_path, operator = key.rsplit("__", 1)
+                else:
+                    field_path, operator = key, None
+
+                path_parts = field_path.split(".")
+                if len(path_parts) >= 2:
+                    relationship_name = path_parts[0]
+                    remaining_path = ".".join(path_parts[1:])
+
+                    if relationship_name not in joined_filters_info:
+                        joined_filters_info[relationship_name] = {}
+
+                    filter_key = remaining_path + (f"__{operator}" if operator else "")
+                    joined_filters_info[relationship_name][filter_key] = value
+                else:
+                    regular_filters[key] = value
+            else:
+                regular_filters[key] = value
+
+        return regular_filters, joined_filters_info
+
     async def get_multi(
         self,
         db: AsyncSession,
@@ -1430,6 +1508,38 @@ class FastCRUD(
         """
         if (limit is not None and limit < 0) or offset < 0:
             raise ValueError("Limit and offset must be non-negative.")
+
+        regular_filters, joined_filters_info = self._detect_joined_filters(**kwargs)
+
+        if joined_filters_info:
+            if len(joined_filters_info) == 1:
+                relationship_name = list(joined_filters_info.keys())[0]
+                relationship_filters = joined_filters_info[relationship_name]
+
+                relationship = getattr(self.model, relationship_name, None)
+                if relationship is None:
+                    raise ValueError(f"Relationship '{relationship_name}' not found in model '{self.model.__name__}'")
+
+                if hasattr(relationship.property, 'mapper'):
+                    join_model = relationship.property.mapper.class_
+                else:
+                    raise ValueError(f"Invalid relationship '{relationship_name}' in model '{self.model.__name__}'")
+
+                return await self.get_multi_joined(
+                    db=db,
+                    offset=offset,
+                    limit=limit,
+                    schema_to_select=schema_to_select,
+                    join_model=join_model,
+                    join_filters=relationship_filters,
+                    sort_columns=sort_columns,
+                    sort_orders=sort_orders,
+                    return_as_model=return_as_model,
+                    return_total_count=return_total_count,
+                    **regular_filters,
+                )
+            else:
+                pass
 
         stmt = await self.select(
             schema_to_select=schema_to_select,
@@ -2451,7 +2561,7 @@ class FastCRUD(
         out = dict(result._mapping)
         if not return_as_model:
             return out
-        if not schema_to_select:  # pragma: no cover
+        if not schema_to_select:
             raise ValueError(
                 "schema_to_select must be provided when return_as_model is True."
             )
@@ -2468,12 +2578,12 @@ class FastCRUD(
         if not return_as_model:
             return {"data": data}
 
-        if not schema_to_select:  # pragma: no cover
+        if not schema_to_select:
             raise ValueError("schema_to_select required when return_as_model is True")
 
         try:
             return {"data": [schema_to_select(**row) for row in data]}
-        except ValidationError as e:  # pragma: no cover
+        except ValidationError as e:
             raise ValueError(
                 f"Schema validation error ({schema_to_select.__name__}): {e}"
             )
@@ -2483,6 +2593,7 @@ class FastCRUD(
         db: AsyncSession,
         allow_multiple: bool = False,
         commit: bool = True,
+        filters: Optional[DeleteSchemaType] = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -2494,19 +2605,28 @@ class FastCRUD(
             db: The database session to use for the operation.
             allow_multiple: If `True`, allows deleting multiple records that match the filters. If `False`, raises an error if more than one record matches the filters.
             commit: If `True`, commits the transaction immediately. Default is `True`.
-            **kwargs: Filters to identify the record(s) to delete, including advanced comparison operators for detailed querying.
+            filters: Optional Pydantic schema instance containing filters to identify the record(s) to delete.
+            **kwargs: Additional filters to identify the record(s) to delete, including advanced comparison operators for detailed querying.
 
         Returns:
             None
 
         Raises:
+            ValueError: If no filters are provided (to prevent accidental deletion of all records).
             MultipleResultsFound: If `allow_multiple` is `False` and more than one record matches the filters.
 
         Examples:
-            Delete a user based on their ID:
+            Delete a user based on their ID using kwargs:
 
             ```python
             await user_crud.db_delete(db, id=1)
+            ```
+
+            Delete a user using a Pydantic schema:
+
+            ```python
+            delete_filters = DeleteUserSchema(id=1)
+            await user_crud.db_delete(db, filters=delete_filters)
             ```
 
             Delete users older than 30 years and allow deletion of multiple records:
@@ -2528,14 +2648,35 @@ class FastCRUD(
                 username='unique_username',
             )
             ```
+
+            Combine schema filters with kwargs:
+
+            ```python
+            delete_filters = DeleteUserSchema(status='inactive')
+            await user_crud.db_delete(
+                db,
+                filters=delete_filters,
+                allow_multiple=True,
+                created_at__lt=datetime(2020, 1, 1),
+            )
+            ```
         """
-        if not allow_multiple and (total_count := await self.count(db, **kwargs)) > 1:
+        combined_filters = {}
+        if filters:
+            combined_filters.update(filters.model_dump(exclude_unset=True))
+        combined_filters.update(kwargs)
+
+
+        if not combined_filters:
+            raise ValueError("No filters provided. To prevent accidental deletion of all records, at least one filter must be specified.")
+
+        if not allow_multiple and (total_count := await self.count(db, **combined_filters)) > 1:
             raise MultipleResultsFound(
                 f"Expected exactly one record to delete, found {total_count}."
             )
 
-        filters = self._parse_filters(**kwargs)
-        stmt = delete(self.model).filter(*filters)
+        parsed_filters = self._parse_filters(**combined_filters)
+        stmt = delete(self.model).filter(*parsed_filters)
         await db.execute(stmt)
         if commit:
             await db.commit()
@@ -2546,6 +2687,7 @@ class FastCRUD(
         db_row: Optional[Row] = None,
         allow_multiple: bool = False,
         commit: bool = True,
+        filters: Optional[DeleteSchemaType] = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -2558,9 +2700,11 @@ class FastCRUD(
             db_row: Optional existing database row to delete. If provided, the method will attempt to delete this specific row, ignoring other filters.
             allow_multiple: If `True`, allows deleting multiple records that match the filters. If `False`, raises an error if more than one record matches the filters.
             commit: If `True`, commits the transaction immediately. Default is `True`.
-            **kwargs: Filters to identify the record(s) to delete, supporting advanced comparison operators for refined querying.
+            filters: Optional Pydantic schema instance containing filters to identify the record(s) to delete.
+            **kwargs: Additional filters to identify the record(s) to delete, supporting advanced comparison operators for refined querying.
 
         Raises:
+            ValueError: If no filters are provided and db_row is None (to prevent accidental deletion of all records).
             MultipleResultsFound: If `allow_multiple` is `False` and more than one record matches the filters.
             NoResultFound: If no record matches the filters.
 
@@ -2568,10 +2712,17 @@ class FastCRUD(
             None
 
         Examples:
-            Soft delete a specific user by ID:
+            Soft delete a specific user by ID using kwargs:
 
             ```python
             await user_crud.delete(db, id=1)
+            ```
+
+            Soft delete a user using a Pydantic schema:
+
+            ```python
+            delete_filters = DeleteUserSchema(id=1)
+            await user_crud.delete(db, filters=delete_filters)
             ```
 
             Soft delete users with account registration dates before 2020, allowing deletion of multiple records:
@@ -2593,8 +2744,24 @@ class FastCRUD(
                 email='unique@example.com',
             )
             ```
+
+            Combine schema filters with kwargs:
+
+            ```python
+            delete_filters = DeleteUserSchema(status='inactive')
+            await user_crud.delete(
+                db,
+                filters=delete_filters,
+                allow_multiple=True,
+                last_login__lt=datetime(2023, 1, 1),
+            )
+            ```
         """
-        filters = self._parse_filters(**kwargs)
+        combined_filters = {}
+        if filters:
+            combined_filters.update(filters.model_dump(exclude_unset=True))
+        combined_filters.update(kwargs)
+
         if db_row:
             has_soft_delete = hasattr(db_row, self.is_deleted_column) and hasattr(
                 db_row, self.deleted_at_column
@@ -2608,13 +2775,18 @@ class FastCRUD(
                 await db.commit()
             return
 
-        total_count = await self.count(db, **kwargs)
+        if not combined_filters:
+            raise ValueError("No filters provided. To prevent accidental deletion of all records, at least one filter must be specified.")
+
+        total_count = await self.count(db, **combined_filters)
         if total_count == 0:
             raise NoResultFound("No record found to delete.")
         if not allow_multiple and total_count > 1:
             raise MultipleResultsFound(
                 f"Expected exactly one record to delete, found {total_count}."
             )
+
+        parsed_filters = self._parse_filters(**combined_filters)
 
         update_values: dict[str, Union[bool, datetime]] = {}
         if self.deleted_at_column in self.model_col_names:
@@ -2623,11 +2795,11 @@ class FastCRUD(
             update_values[self.is_deleted_column] = True
 
         if update_values:
-            update_stmt = update(self.model).filter(*filters).values(**update_values)
+            update_stmt = update(self.model).filter(*parsed_filters).values(**update_values)
             await db.execute(update_stmt)
 
         else:
-            delete_stmt = self.model.__table__.delete().where(*filters)
+            delete_stmt = self.model.__table__.delete().where(*parsed_filters)
             await db.execute(delete_stmt)
         if commit:
             await db.commit()
