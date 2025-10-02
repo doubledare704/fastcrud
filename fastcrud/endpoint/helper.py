@@ -468,17 +468,13 @@ def _create_modified_schema(
     if not exclude_fields:
         return original_schema
 
-    # Get all fields from the original schema
     from pydantic import create_model
 
-    # Extract field definitions, excluding specified fields
     field_definitions: dict[str, Any] = {}
     for field_name, field_info in original_schema.model_fields.items():
         if field_name not in exclude_fields:
-            # Preserve the field type and default
             field_definitions[field_name] = (field_info.annotation, field_info)
 
-    # Create new model with excluded fields removed
     new_schema: type[BaseModel] = create_model(
         schema_name,
         **field_definitions  # type: ignore[arg-type]

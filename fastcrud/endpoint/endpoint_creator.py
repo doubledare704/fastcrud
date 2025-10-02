@@ -357,7 +357,6 @@ class EndpointCreator:
         """Creates an endpoint for creating items in the database."""
         auto_field_injector = _create_auto_field_injector(self.create_config)
 
-        # Create modified schema if exclude_from_schema is configured
         request_schema: type[BaseModel] = self.create_schema
         if self.create_config and self.create_config.exclude_from_schema:
             request_schema = _create_modified_schema(
@@ -383,11 +382,9 @@ class EndpointCreator:
                             f"Value {value} is already registered"
                         )
 
-            # Inject auto_fields if configured
             if auto_fields:
                 item_dict = item.model_dump()
                 item_dict.update(auto_fields)
-                # Create DB model directly since we have extra fields not in schema
                 db_object = self.model(**item_dict)
                 db.add(db_object)
                 await db.commit()
@@ -396,7 +393,6 @@ class EndpointCreator:
 
             return await self.crud.create(db, item)
 
-        # Set the correct schema for FastAPI's dependency injection
         endpoint.__annotations__['item'] = request_schema
 
         return endpoint
@@ -524,7 +520,6 @@ class EndpointCreator:
         """Creates an endpoint for updating an existing item in the database."""
         auto_field_injector = _create_auto_field_injector(self.update_config)
 
-        # Create modified schema if exclude_from_schema is configured
         request_schema: type[BaseModel] = self.update_schema
         if self.update_config and self.update_config.exclude_from_schema:
             request_schema = _create_modified_schema(
@@ -539,19 +534,15 @@ class EndpointCreator:
             auto_fields: dict = Depends(auto_field_injector),
             **pkeys,
         ):
-            # Inject auto_fields if configured
             if auto_fields:
                 item_dict = item.model_dump(exclude_unset=True)
                 item_dict.update(auto_fields)
-                # crud.update accepts dict, so pass merged dict
                 return await self.crud.update(db, item_dict, **pkeys)
 
             return await self.crud.update(db, item, **pkeys)
 
-        # Set the correct schema for FastAPI's dependency injection
         endpoint.__annotations__['item'] = request_schema
 
-        # Apply primary key decorator after setting annotations
         endpoint = _apply_model_pk(**self._primary_keys_types)(endpoint)
 
         return endpoint
