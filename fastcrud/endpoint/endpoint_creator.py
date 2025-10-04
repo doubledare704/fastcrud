@@ -4,6 +4,8 @@ from enum import Enum
 from fastapi import Depends, Body, Query, APIRouter
 from pydantic import ValidationError, BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import NoResultFound
+
 
 from fastcrud.crud.fast_crud import FastCRUD
 from fastcrud.paginated import ListResponse, PaginatedListResponse
@@ -496,7 +498,10 @@ class EndpointCreator:
             db: AsyncSession = Depends(self.session),
             **pkeys,
         ):
-            return await self.crud.update(db, item, **pkeys)
+            try:
+                return await self.crud.update(db, item, **pkeys)
+            except NoResultFound:
+                raise NotFoundException(detail="Item not found")
 
         return endpoint
 
@@ -505,7 +510,10 @@ class EndpointCreator:
 
         @_apply_model_pk(**self._primary_keys_types)
         async def endpoint(db: AsyncSession = Depends(self.session), **pkeys):
-            await self.crud.delete(db, **pkeys)
+            try:
+                await self.crud.delete(db, **pkeys)
+            except NoResultFound:
+                raise NotFoundException(detail="Item not found")
             return {"message": "Item deleted successfully"}  # pragma: no cover
 
         return endpoint

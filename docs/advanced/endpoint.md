@@ -159,6 +159,7 @@ FastCRUD automates the creation of CRUD (Create, Read, Update, Delete) endpoints
 - **Request Body**: JSON object based on the `update_schema`.
 - **Example Request**: `PATCH /items/1` with JSON body.
 - **Example Return**: `None`
+- Note: If the target item is not found by ID, the generated endpoint returns a 404 Not Found with detail "Item not found".
 
 ### Delete
 
@@ -168,6 +169,7 @@ FastCRUD automates the creation of CRUD (Create, Read, Update, Delete) endpoints
 - **Path Parameters**: `id` - The ID of the item to delete.
 - **Example Request**: `DELETE /items/1`.
 - **Example Return**: `None`
+- Note: If the target item is not found by ID, the generated endpoint returns a 404 Not Found with detail "Item not found".
 
 ### DB Delete (Hard Delete)
 
