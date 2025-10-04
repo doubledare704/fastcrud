@@ -1243,6 +1243,7 @@ class FastCRUD(
         self,
         db: AsyncSession,
         joins_config: Optional[list[JoinConfig]] = None,
+        distinct_on_primary: bool = False,
         **kwargs: Any,
     ) -> int:
         """
@@ -1349,8 +1350,13 @@ class FastCRUD(
             if primary_filters:
                 base_query = base_query.where(*primary_filters)
 
-            subquery = base_query.subquery()
-            count_query = select(func.count()).select_from(subquery)
+            # Ensure distinct base rows only when requested (e.g., when nesting one-to-many results)
+            if distinct_on_primary:
+                base_query = base_query.distinct()
+                subquery = base_query.subquery()
+                count_query = select(func.count()).select_from(subquery)
+            else:
+                count_query = select(func.count()).select_from(base_query.subquery())
         else:
             count_query = select(func.count()).select_from(self.model)
             if primary_filters:
@@ -2303,8 +2309,12 @@ class FastCRUD(
         response: dict[str, Any] = {"data": nested_data}
 
         if return_total_count:
+            # Use distinct count only when nesting one-to-many relationships into single base rows
+            distinct_on_primary = bool(
+                nest_joins and any(j.relationship_type == "one-to-many" for j in join_definitions)
+            )
             total_count: int = await self.count(
-                db=db, joins_config=join_definitions, **kwargs
+                db=db, joins_config=join_definitions, distinct_on_primary=distinct_on_primary, **kwargs
             )
             response["total_count"] = total_count
 
