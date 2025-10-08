@@ -679,16 +679,22 @@ class FastCRUD(
         for relationship_name in relationship_path:
             relationship = getattr(current_model, relationship_name, None)
             if relationship is None:
-                raise ValueError(f"Relationship '{relationship_name}' not found in model '{current_model.__name__}'")
+                raise ValueError(
+                    f"Relationship '{relationship_name}' not found in model '{current_model.__name__}'"
+                )
 
-            if hasattr(relationship.property, 'mapper'):
+            if hasattr(relationship.property, "mapper"):
                 current_model = relationship.property.mapper.class_
             else:
-                raise ValueError(f"Invalid relationship '{relationship_name}' in model '{current_model.__name__}'")
+                raise ValueError(
+                    f"Invalid relationship '{relationship_name}' in model '{current_model.__name__}'"
+                )
 
         target_column = getattr(current_model, final_field, None)
         if target_column is None:
-            raise ValueError(f"Column '{final_field}' not found in model '{current_model.__name__}'")
+            raise ValueError(
+                f"Column '{final_field}' not found in model '{current_model.__name__}'"
+            )
 
         if operator is None:
             return [target_column == value]
@@ -1243,6 +1249,7 @@ class FastCRUD(
         self,
         db: AsyncSession,
         joins_config: Optional[list[JoinConfig]] = None,
+        distinct_on_primary: bool = False,
         **kwargs: Any,
     ) -> int:
         """
@@ -1255,6 +1262,9 @@ class FastCRUD(
         Args:
             db: The database session to use for the operation.
             joins_config: Optional configuration for applying joins in the count query.
+            distinct_on_primary: If True, counts only distinct base model rows when using joins.
+                This is particularly useful for one-to-many relationships to avoid inflated counts
+                from multiple joined rows per base row. Defaults to False.
             **kwargs: Filters to apply for the count, including field names for equality checks or with comparison operators for advanced queries.
 
         Returns:
@@ -1349,8 +1359,12 @@ class FastCRUD(
             if primary_filters:
                 base_query = base_query.where(*primary_filters)
 
-            subquery = base_query.subquery()
-            count_query = select(func.count()).select_from(subquery)
+            if distinct_on_primary:
+                base_query = base_query.distinct()
+                subquery = base_query.subquery()
+                count_query = select(func.count()).select_from(subquery)
+            else:
+                count_query = select(func.count()).select_from(base_query.subquery())
         else:
             count_query = select(func.count()).select_from(self.model)
             if primary_filters:
@@ -1362,7 +1376,9 @@ class FastCRUD(
 
         return total_count
 
-    def _detect_joined_filters(self, **kwargs: Any) -> tuple[dict[str, Any], dict[str, Any]]:
+    def _detect_joined_filters(
+        self, **kwargs: Any
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         """
         Detect and separate joined model filters from regular filters.
 
@@ -1518,12 +1534,16 @@ class FastCRUD(
 
                 relationship = getattr(self.model, relationship_name, None)
                 if relationship is None:
-                    raise ValueError(f"Relationship '{relationship_name}' not found in model '{self.model.__name__}'")
+                    raise ValueError(
+                        f"Relationship '{relationship_name}' not found in model '{self.model.__name__}'"
+                    )
 
-                if hasattr(relationship.property, 'mapper'):
+                if hasattr(relationship.property, "mapper"):
                     join_model = relationship.property.mapper.class_
                 else:
-                    raise ValueError(f"Invalid relationship '{relationship_name}' in model '{self.model.__name__}'")
+                    raise ValueError(
+                        f"Invalid relationship '{relationship_name}' in model '{self.model.__name__}'"
+                    )
 
                 return await self.get_multi_joined(
                     db=db,
@@ -2303,8 +2323,15 @@ class FastCRUD(
         response: dict[str, Any] = {"data": nested_data}
 
         if return_total_count:
+            distinct_on_primary = bool(
+                nest_joins
+                and any(j.relationship_type == "one-to-many" for j in join_definitions)
+            )
             total_count: int = await self.count(
-                db=db, joins_config=join_definitions, **kwargs
+                db=db,
+                joins_config=join_definitions,
+                distinct_on_primary=distinct_on_primary,
+                **kwargs,
             )
             response["total_count"] = total_count
 
@@ -2666,11 +2693,15 @@ class FastCRUD(
             combined_filters.update(filters.model_dump(exclude_unset=True))
         combined_filters.update(kwargs)
 
-
         if not combined_filters:
-            raise ValueError("No filters provided. To prevent accidental deletion of all records, at least one filter must be specified.")
+            raise ValueError(
+                "No filters provided. To prevent accidental deletion of all records, at least one filter must be specified."
+            )
 
-        if not allow_multiple and (total_count := await self.count(db, **combined_filters)) > 1:
+        if (
+            not allow_multiple
+            and (total_count := await self.count(db, **combined_filters)) > 1
+        ):
             raise MultipleResultsFound(
                 f"Expected exactly one record to delete, found {total_count}."
             )
@@ -2776,7 +2807,9 @@ class FastCRUD(
             return
 
         if not combined_filters:
-            raise ValueError("No filters provided. To prevent accidental deletion of all records, at least one filter must be specified.")
+            raise ValueError(
+                "No filters provided. To prevent accidental deletion of all records, at least one filter must be specified."
+            )
 
         total_count = await self.count(db, **combined_filters)
         if total_count == 0:
@@ -2795,7 +2828,9 @@ class FastCRUD(
             update_values[self.is_deleted_column] = True
 
         if update_values:
-            update_stmt = update(self.model).filter(*parsed_filters).values(**update_values)
+            update_stmt = (
+                update(self.model).filter(*parsed_filters).values(**update_values)
+            )
             await db.execute(update_stmt)
 
         else:

@@ -4,6 +4,16 @@
 
 The Changelog documents all notable changes made to FastCRUD. This includes new features, bug fixes, and improvements. It's organized by version and date, providing a clear history of the library's development.
 ___
+## [Unreleased]
+
+#### Fixed
+- get_multi_joined: Correct total_count for many-to-many joins when nest_joins=True by counting distinct base rows only when nesting one-to-many relationships
+- get_multi_joined: Preserve base model list fields when nesting one-to-many relationships (no longer overwritten with empty lists during aggregation)
+
+Thanks to upstream report in https://github.com/benavlabs/fastcrud/issues/255
+
+___
+
 ## [0.15.7] - Mar 25, 2025
 
 #### Added
@@ -464,7 +474,7 @@ items = await crud_items.upsert_multi(
 - More Advanced Filters by @JakNowy 🎉
 
 #### Fixed
-- Bug where objects with null primary key are returned with all fields set to None in nested joins #102 
+- Bug where objects with null primary key are returned with all fields set to None in nested joins #102
 
 ___
 #### Detailed Changes
@@ -540,7 +550,7 @@ items = await item_crud.get_multi(
 #### Added
 - Filters in Automatic Endpoints 🎉
 - One-to-many support in joins
-- Upsert method in FastCRUD class by @dubusster 
+- Upsert method in FastCRUD class by @dubusster
 
 ___
 #### Detailed Changes
@@ -866,8 +876,8 @@ from .database import session as db
 crud_items = FastCRUD(Item)
 
 await crud_items.delete(
-    db=db, 
-    commit=False, 
+    db=db,
+    commit=False,
     id=1
 )
 # this will not actually delete until you run a db.commit()
@@ -916,8 +926,8 @@ If you want to ensure the `one_or_none` behavior, you may pass the parameter as 
 
 ```python
 crud.get(
-    async_session, 
-    one_or_none=True, 
+    async_session,
+    one_or_none=True,
     category_id=1
 )
 ```
@@ -1146,7 +1156,7 @@ ___
 #### Detailed Changes
 
 ##### Custom Endpoint Naming
-The introduction of the `endpoint_names` parameter offers flexibility in defining endpoint names for CRUD operations. This enhancement caters to the need for more descriptive or project-specific naming conventions, enabling developers to align the API's interface with their domain language or organizational standards. 
+The introduction of the `endpoint_names` parameter offers flexibility in defining endpoint names for CRUD operations. This enhancement caters to the need for more descriptive or project-specific naming conventions, enabling developers to align the API's interface with their domain language or organizational standards.
 
 ###### Example: Customizing Endpoint Names with `crud_router`
 Customizing endpoint names is straightforward with the `crud_router` function. By providing a dictionary mapping CRUD operation names to desired endpoint names, developers can easily tailor their API's paths to fit their application's unique requirements.
@@ -1219,7 +1229,7 @@ ___
 
 ## [0.5.0] - Feb 3, 2024
 
-#### Added 
+#### Added
 - Advanced filters inspired by Django ORM for enhanced querying capabilities.
 - Optional bulk operations for update and delete methods.
 - Custom soft delete mechanisms integrated into `FastCRUD`, `EndpointCreator`, and `crud_router`.
@@ -1259,7 +1269,7 @@ ___
 
 ## [0.4.0] - Jan 31, 2024
 
-#### Added 
+#### Added
 - Documentation and tests for SQLModel support.
 - `py.typed` file for better typing support.
 

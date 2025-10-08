@@ -81,7 +81,9 @@ class FilterConfig(BaseModel):
         field_path = filter_key.split("__")[0] if "__" in filter_key else filter_key
         return "." in field_path
 
-    def parse_joined_filter(self, filter_key: str) -> tuple[list[str], str, Optional[str]]:
+    def parse_joined_filter(
+        self, filter_key: str
+    ) -> tuple[list[str], str, Optional[str]]:
         """
         Parse a joined filter key into its components.
 
@@ -107,7 +109,9 @@ class FilterConfig(BaseModel):
         return relationship_path, final_field, operator
 
 
-def _validate_joined_filter_path(model: ModelType, relationship_path: list[str], final_field: str) -> bool:
+def _validate_joined_filter_path(
+    model: ModelType, relationship_path: list[str], final_field: str
+) -> bool:
     """
     Validate that a joined filter path exists in the model relationships.
 
@@ -126,7 +130,7 @@ def _validate_joined_filter_path(model: ModelType, relationship_path: list[str],
         if inspector is None:
             return False
 
-        if not hasattr(inspector, 'relationships'):
+        if not hasattr(inspector, "relationships"):
             return False
 
         relationship = inspector.relationships.get(relationship_name)
@@ -139,7 +143,11 @@ def _validate_joined_filter_path(model: ModelType, relationship_path: list[str],
     if final_inspector is None:
         return False
 
-    return hasattr(current_model, final_field) and hasattr(final_inspector.mapper, 'columns') and final_field in [col.name for col in final_inspector.mapper.columns]
+    return (
+        hasattr(current_model, final_field)
+        and hasattr(final_inspector.mapper, "columns")
+        and final_field in [col.name for col in final_inspector.mapper.columns]
+    )
 
 
 def _get_primary_key(

@@ -64,13 +64,16 @@ def test_delete_method_typing() -> None:
 
     # Test that the method signature includes the filters parameter
     import inspect
+
     sig = inspect.signature(crud.delete)
-    assert 'filters' in sig.parameters
-    assert 'kwargs' in sig.parameters
+    assert "filters" in sig.parameters
+    assert "kwargs" in sig.parameters
 
     # Test that filters parameter has correct type annotation
-    filters_param = sig.parameters['filters']
-    assert 'DeleteUserSchema' in str(filters_param.annotation) or 'DeleteSchemaType' in str(filters_param.annotation)
+    filters_param = sig.parameters["filters"]
+    assert "DeleteUserSchema" in str(
+        filters_param.annotation
+    ) or "DeleteSchemaType" in str(filters_param.annotation)
 
 
 def test_db_delete_method_typing() -> None:
@@ -79,13 +82,16 @@ def test_db_delete_method_typing() -> None:
 
     # Test that the method signature includes the filters parameter
     import inspect
+
     sig = inspect.signature(crud.db_delete)
-    assert 'filters' in sig.parameters
-    assert 'kwargs' in sig.parameters
+    assert "filters" in sig.parameters
+    assert "kwargs" in sig.parameters
 
     # Test that filters parameter has correct type annotation
-    filters_param = sig.parameters['filters']
-    assert 'DeleteUserSchema' in str(filters_param.annotation) or 'DeleteSchemaType' in str(filters_param.annotation)
+    filters_param = sig.parameters["filters"]
+    assert "DeleteUserSchema" in str(
+        filters_param.annotation
+    ) or "DeleteSchemaType" in str(filters_param.annotation)
 
 
 def test_delete_method_return_type() -> None:
@@ -93,9 +99,10 @@ def test_delete_method_return_type() -> None:
     crud = UserCRUD(UserModel)
 
     import inspect
+
     sig = inspect.signature(crud.delete)
     # The return type should be None
-    assert sig.return_annotation is None or str(sig.return_annotation) == 'None'
+    assert sig.return_annotation is None or str(sig.return_annotation) == "None"
 
 
 def test_db_delete_method_return_type() -> None:
@@ -103,9 +110,10 @@ def test_db_delete_method_return_type() -> None:
     crud = UserCRUD(UserModel)
 
     import inspect
+
     sig = inspect.signature(crud.db_delete)
     # The return type should be None
-    assert sig.return_annotation is None or str(sig.return_annotation) == 'None'
+    assert sig.return_annotation is None or str(sig.return_annotation) == "None"
 
 
 def test_fastcrud_generic_typing() -> None:
@@ -152,15 +160,16 @@ def test_typing_demonstration() -> None:
 
     # Verify that the delete method has proper typing
     import inspect
+
     delete_sig = inspect.signature(user_crud.delete)
     db_delete_sig = inspect.signature(user_crud.db_delete)
 
     # Both methods should have filters parameter with proper typing
-    assert 'filters' in delete_sig.parameters
-    assert 'filters' in db_delete_sig.parameters
+    assert "filters" in delete_sig.parameters
+    assert "filters" in db_delete_sig.parameters
 
     # The methods should no longer be "partially unknown" to type checkers
-    assert hasattr(user_crud, 'delete')
-    assert hasattr(user_crud, 'db_delete')
+    assert hasattr(user_crud, "delete")
+    assert hasattr(user_crud, "db_delete")
     assert callable(user_crud.delete)
     assert callable(user_crud.db_delete)

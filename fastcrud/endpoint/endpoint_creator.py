@@ -319,14 +319,18 @@ class EndpointCreator:
 
             if filter_config.is_joined_filter(key):
                 try:
-                    relationship_path, final_field, operator = filter_config.parse_joined_filter(key)
+                    relationship_path, final_field, operator = (
+                        filter_config.parse_joined_filter(key)
+                    )
 
                     if operator and operator not in supported_filters:
                         raise ValueError(
                             f"Invalid filter op '{operator}': following filter ops are allowed: {supported_filters.keys()}"
                         )
 
-                    if not _validate_joined_filter_path(self.model, relationship_path, final_field):
+                    if not _validate_joined_filter_path(
+                        self.model, relationship_path, final_field
+                    ):
                         raise ValueError(
                             f"Invalid joined filter '{key}': relationship path {'.'.join(relationship_path + [final_field])} not found in model '{self.model.__name__}'"
                         )
