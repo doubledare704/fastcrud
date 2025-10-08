@@ -280,7 +280,9 @@ async def test_delete_with_combined_filters(async_session, test_data, test_model
 
 
 @pytest.mark.asyncio
-async def test_db_delete_with_combined_filters(async_session, test_data_tier, tier_model):
+async def test_db_delete_with_combined_filters(
+    async_session, test_data_tier, tier_model
+):
     """Test db_delete method with both filters schema and kwargs."""
     for tier_item in test_data_tier:
         async_session.add(tier_model(**tier_item))
@@ -294,7 +296,9 @@ async def test_db_delete_with_combined_filters(async_session, test_data_tier, ti
     delete_filters = DeleteTierSchema(id=some_existing_id)
 
     # Add additional filters via kwargs
-    await crud.db_delete(db=async_session, filters=delete_filters, name=some_existing_name)
+    await crud.db_delete(
+        db=async_session, filters=delete_filters, name=some_existing_name
+    )
 
     deleted_record = await async_session.execute(
         select(tier_model).where(tier_model.id == some_existing_id)
@@ -304,7 +308,9 @@ async def test_db_delete_with_combined_filters(async_session, test_data_tier, ti
 
 # Tests for safeguards against accidental deletion
 @pytest.mark.asyncio
-async def test_delete_no_filters_raises_value_error(async_session, test_data, test_model):
+async def test_delete_no_filters_raises_value_error(
+    async_session, test_data, test_model
+):
     """Test that delete method raises ValueError when no filters are provided."""
     for item in test_data:
         async_session.add(test_model(**item))
@@ -317,7 +323,9 @@ async def test_delete_no_filters_raises_value_error(async_session, test_data, te
 
 
 @pytest.mark.asyncio
-async def test_db_delete_no_filters_raises_value_error(async_session, test_data_tier, tier_model):
+async def test_db_delete_no_filters_raises_value_error(
+    async_session, test_data_tier, tier_model
+):
     """Test that db_delete method raises ValueError when no filters are provided."""
     for tier_item in test_data_tier:
         async_session.add(tier_model(**tier_item))
@@ -330,7 +338,9 @@ async def test_db_delete_no_filters_raises_value_error(async_session, test_data_
 
 
 @pytest.mark.asyncio
-async def test_delete_empty_filters_schema_raises_value_error(async_session, test_data, test_model):
+async def test_delete_empty_filters_schema_raises_value_error(
+    async_session, test_data, test_model
+):
     """Test that delete method raises ValueError when empty filters schema is provided."""
     for item in test_data:
         async_session.add(test_model(**item))
@@ -346,7 +356,9 @@ async def test_delete_empty_filters_schema_raises_value_error(async_session, tes
 
 
 @pytest.mark.asyncio
-async def test_db_delete_empty_filters_schema_raises_value_error(async_session, test_data_tier, tier_model):
+async def test_db_delete_empty_filters_schema_raises_value_error(
+    async_session, test_data_tier, tier_model
+):
     """Test that db_delete method raises ValueError when empty filters schema is provided."""
     for tier_item in test_data_tier:
         async_session.add(tier_model(**tier_item))
@@ -363,7 +375,9 @@ async def test_db_delete_empty_filters_schema_raises_value_error(async_session, 
 
 # Tests for backward compatibility
 @pytest.mark.asyncio
-async def test_delete_backward_compatibility_with_kwargs(async_session, test_data, test_model):
+async def test_delete_backward_compatibility_with_kwargs(
+    async_session, test_data, test_model
+):
     """Test that delete method still works with only kwargs (backward compatibility)."""
     for item in test_data:
         async_session.add(test_model(**item))
@@ -384,7 +398,9 @@ async def test_delete_backward_compatibility_with_kwargs(async_session, test_dat
 
 
 @pytest.mark.asyncio
-async def test_db_delete_backward_compatibility_with_kwargs(async_session, test_data_tier, tier_model):
+async def test_db_delete_backward_compatibility_with_kwargs(
+    async_session, test_data_tier, tier_model
+):
     """Test that db_delete method still works with only kwargs (backward compatibility)."""
     for tier_item in test_data_tier:
         async_session.add(tier_model(**tier_item))

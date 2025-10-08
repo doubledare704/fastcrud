@@ -19,33 +19,36 @@ async def setup_test_data(async_session):
     company1 = Company(name="TechCorp", industry="Technology")
     company2 = Company(name="HealthInc", industry="Healthcare")
     company3 = Company(name="FinanceGroup", industry="Finance")
-    
+
     async_session.add_all([company1, company2, company3])
     await async_session.commit()
-    
+
     # Create users
     users = [
-        UserModel(name="Alice Johnson", email="alice@techcorp.com", company_id=company1.id),
+        UserModel(
+            name="Alice Johnson", email="alice@techcorp.com", company_id=company1.id
+        ),
         UserModel(name="Bob Smith", email="bob@techcorp.com", company_id=company1.id),
-        UserModel(name="Charlie Brown", email="charlie@healthinc.com", company_id=company2.id),
-        UserModel(name="Diana Prince", email="diana@financegroup.com", company_id=company3.id),
+        UserModel(
+            name="Charlie Brown", email="charlie@healthinc.com", company_id=company2.id
+        ),
+        UserModel(
+            name="Diana Prince", email="diana@financegroup.com", company_id=company3.id
+        ),
         UserModel(name="Eve Wilson", email="eve@techcorp.com", company_id=company1.id),
     ]
-    
+
     async_session.add_all(users)
     await async_session.commit()
-    
-    return {
-        "companies": [company1, company2, company3],
-        "users": users
-    }
+
+    return {"companies": [company1, company2, company3], "users": users}
 
 
 @pytest.fixture
 def user_app_with_joined_filters(async_session):
     """Create FastAPI app with UserModel endpoints that support joined model filtering."""
     app = FastAPI()
-    
+
     endpoint_creator = EndpointCreator(
         session=lambda: async_session,
         model=UserModel,
@@ -57,7 +60,7 @@ def user_app_with_joined_filters(async_session):
             name=None,
             email=None,
             # Joined model filters
-            **{"company.name": None, "company.industry": None}
+            **{"company.name": None, "company.industry": None},
         ),
     )
     endpoint_creator.add_routes_to_router(included_methods=["read_multi"])
@@ -69,7 +72,7 @@ def user_app_with_joined_filters(async_session):
 def company_app_with_joined_filters(async_session):
     """Create FastAPI app with Company endpoints that support joined model filtering."""
     app = FastAPI()
-    
+
     endpoint_creator = EndpointCreator(
         session=lambda: async_session,
         model=Company,
@@ -90,10 +93,12 @@ def company_app_with_joined_filters(async_session):
 
 
 @pytest.mark.asyncio
-async def test_filter_users_by_company_name(user_app_with_joined_filters, setup_test_data):
+async def test_filter_users_by_company_name(
+    user_app_with_joined_filters, setup_test_data
+):
     """Test filtering users by their company name."""
     # Await the setup_test_data fixture
-    test_data = await setup_test_data
+    await setup_test_data
     client = TestClient(user_app_with_joined_filters)
 
     # First, let's test a simple request without filters to make sure the endpoint works
@@ -122,10 +127,12 @@ async def test_filter_users_by_company_name(user_app_with_joined_filters, setup_
 
 
 @pytest.mark.asyncio
-async def test_filter_users_by_company_industry(user_app_with_joined_filters, setup_test_data):
+async def test_filter_users_by_company_industry(
+    user_app_with_joined_filters, setup_test_data
+):
     """Test filtering users by their company industry."""
     # Await the setup_test_data fixture
-    test_data = await setup_test_data
+    await setup_test_data
     client = TestClient(user_app_with_joined_filters)
 
     # Filter users by company industry "Healthcare"
@@ -143,10 +150,12 @@ async def test_filter_users_by_company_industry(user_app_with_joined_filters, se
 
 
 @pytest.mark.asyncio
-async def test_filter_users_by_multiple_joined_filters(user_app_with_joined_filters, setup_test_data):
+async def test_filter_users_by_multiple_joined_filters(
+    user_app_with_joined_filters, setup_test_data
+):
     """Test filtering users by multiple joined model filters."""
     # Await the setup_test_data fixture
-    test_data = await setup_test_data
+    await setup_test_data
     client = TestClient(user_app_with_joined_filters)
 
     # Filter users by company name and industry
@@ -164,10 +173,12 @@ async def test_filter_users_by_multiple_joined_filters(user_app_with_joined_filt
 
 
 @pytest.mark.asyncio
-async def test_filter_users_combined_regular_and_joined(user_app_with_joined_filters, setup_test_data):
+async def test_filter_users_combined_regular_and_joined(
+    user_app_with_joined_filters, setup_test_data
+):
     """Test filtering users by combining regular and joined model filters."""
     # Await the setup_test_data fixture
-    test_data = await setup_test_data
+    await setup_test_data
     client = TestClient(user_app_with_joined_filters)
 
     # Filter by user name and company name
@@ -188,7 +199,7 @@ async def test_filter_users_combined_regular_and_joined(user_app_with_joined_fil
 async def test_filter_users_no_matches(user_app_with_joined_filters, setup_test_data):
     """Test filtering users with no matching results."""
     # Await the setup_test_data fixture
-    test_data = await setup_test_data
+    await setup_test_data
     client = TestClient(user_app_with_joined_filters)
 
     # Filter by non-existent company name
@@ -207,8 +218,10 @@ async def test_filter_users_no_matches(user_app_with_joined_filters, setup_test_
 async def test_filter_config_validation_valid_joined_filter():
     """Test that FilterConfig properly validates valid joined model filters."""
     # This should not raise an exception
-    filter_config = FilterConfig(**{"company.name": None, "company.industry": "Technology"})
-    
+    filter_config = FilterConfig(
+        **{"company.name": None, "company.industry": "Technology"}
+    )
+
     assert "company.name" in filter_config.filters
     assert "company.industry" in filter_config.filters
     assert filter_config.is_joined_filter("company.name")
@@ -219,21 +232,27 @@ async def test_filter_config_validation_valid_joined_filter():
 async def test_filter_config_parse_joined_filter():
     """Test that FilterConfig properly parses joined model filters."""
     filter_config = FilterConfig()
-    
+
     # Test simple joined filter
-    relationship_path, final_field, operator = filter_config.parse_joined_filter("company.name")
+    relationship_path, final_field, operator = filter_config.parse_joined_filter(
+        "company.name"
+    )
     assert relationship_path == ["company"]
     assert final_field == "name"
     assert operator is None
-    
+
     # Test joined filter with operator
-    relationship_path, final_field, operator = filter_config.parse_joined_filter("company.name__eq")
+    relationship_path, final_field, operator = filter_config.parse_joined_filter(
+        "company.name__eq"
+    )
     assert relationship_path == ["company"]
     assert final_field == "name"
     assert operator == "eq"
-    
+
     # Test nested joined filter
-    relationship_path, final_field, operator = filter_config.parse_joined_filter("company.department.name")
+    relationship_path, final_field, operator = filter_config.parse_joined_filter(
+        "company.department.name"
+    )
     assert relationship_path == ["company", "department"]
     assert final_field == "name"
     assert operator is None
@@ -242,7 +261,7 @@ async def test_filter_config_parse_joined_filter():
 def test_filter_config_invalid_joined_filter():
     """Test that FilterConfig raises error for invalid joined model filters."""
     filter_config = FilterConfig()
-    
+
     # Test invalid format (no dot)
     with pytest.raises(ValueError, match="Invalid joined filter format"):
         filter_config.parse_joined_filter("invalid_format")

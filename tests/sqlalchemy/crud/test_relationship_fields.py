@@ -16,11 +16,13 @@ from ...sqlalchemy.conftest import ModelTest, TierModel
 
 class TierReadSchemaIssue199(BaseModel):
     """Schema for tier data in issue #199 tests."""
+
     name: str
 
 
 class ReadSchemaWithRelationship(BaseModel):
     """Schema that includes a relationship field to test issue #199 fix."""
+
     model_config = ConfigDict(extra="forbid")
     name: str
     tier_id: int
@@ -77,8 +79,7 @@ async def test_get_multi_excludes_relationship_fields_from_select(
 
     # This should NOT create a cartesian product or return boolean values
     result = await crud.get_multi(
-        db=async_session,
-        schema_to_select=ReadSchemaWithRelationship
+        db=async_session, schema_to_select=ReadSchemaWithRelationship
     )
 
     # Verify the result structure
@@ -127,7 +128,7 @@ async def test_get_multi_return_as_model_with_relationship_fields(
     result = await crud.get_multi(
         db=async_session,
         schema_to_select=ReadSchemaWithRelationship,
-        return_as_model=True
+        return_as_model=True,
     )
 
     # Verify the result structure
@@ -171,7 +172,7 @@ async def test_get_joined_functionality_unaffected_by_fix(
         join_prefix="tier_",
         schema_to_select=ReadSchemaWithRelationship,
         join_schema_to_select=TierReadSchemaIssue199,
-        nest_joins=True
+        nest_joins=True,
     )
 
     # Verify the result has the tier information properly nested

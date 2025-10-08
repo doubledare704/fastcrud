@@ -44,7 +44,6 @@ async def test_db_delete_item(client: TestClient, async_session, test_model, tes
     assert db_item is None
 
 
-
 @pytest.mark.asyncio
 async def test_delete_item_not_found(client: TestClient, async_session, test_model):
     stmt = select(test_model.id).order_by(test_model.id.desc()).limit(1)

@@ -73,4 +73,3 @@ async def test_many_to_many_nested_aggregates_and_counts_by_base(async_session):
     # Project 1 has two participants; project 2 has one
     assert len(proj1["participant"]) == 2
     assert len(proj2["participant"]) == 1
-
