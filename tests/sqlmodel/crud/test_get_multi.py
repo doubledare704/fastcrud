@@ -246,3 +246,78 @@ async def test_get_multi_handle_validation_error(async_session, test_model):
     assert "Data validation error for schema CustomCreateSchemaTest:" in str(
         exc_info.value
     )
+
+
+@pytest.mark.asyncio
+async def test_get_multi_or_filtering(async_session, test_model):
+    # Create specific test data for OR filtering
+    test_data = [
+        {"name": "Alice", "tier_id": 1, "category_id": 1},
+        {"name": "Bob", "tier_id": 2, "category_id": 1},
+        {"name": "Charlie", "tier_id": 3, "category_id": 1},
+        {"name": "David", "tier_id": 4, "category_id": 1},
+        {"name": "Alice2", "tier_id": 5, "category_id": 1},
+        {"name": "Frank", "tier_id": 6, "category_id": 1},
+    ]
+
+    for item in test_data:
+        async_session.add(test_model(**item))
+    await async_session.commit()
+
+    crud = FastCRUD(test_model)
+
+    # Test OR with simple conditions on tier_id
+    result = await crud.get_multi(async_session, tier_id__or={"eq": [1, 6]})
+    assert len(result["data"]) > 0
+    assert all(item["tier_id"] in [1, 6] for item in result["data"])
+
+    # Test OR with range conditions on tier_id
+    result = await crud.get_multi(async_session, tier_id__or={"lt": 2, "gt": 5})
+    assert len(result["data"]) > 0
+    assert all(item["tier_id"] < 2 or item["tier_id"] > 5 for item in result["data"])
+
+    # Test OR with like conditions on name
+    result = await crud.get_multi(
+        async_session, name__or={"like": ["Alice%", "Frank%"]}
+    )
+    assert len(result["data"]) > 0
+    assert all(
+        item["name"].startswith("Alice") or item["name"].startswith("Frank")
+        for item in result["data"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_multi_not_filtering(async_session, test_model):
+    # Create specific test data for NOT filtering
+    test_data = [
+        {"name": "Alice", "tier_id": 1, "category_id": 1},
+        {"name": "Bob", "tier_id": 2, "category_id": 1},
+        {"name": "Charlie", "tier_id": 3, "category_id": 1},
+        {"name": "David", "tier_id": 4, "category_id": 1},
+        {"name": "Eve", "tier_id": 5, "category_id": 1},
+        {"name": "Frank", "tier_id": 6, "category_id": 1},
+    ]
+
+    for item in test_data:
+        async_session.add(test_model(**item))
+    await async_session.commit()
+
+    crud = FastCRUD(test_model)
+
+    # Test NOT with single condition
+    result = await crud.get_multi(async_session, name__not={"eq": "Alice"})
+    assert len(result["data"]) > 0
+    assert all(item["name"] != "Alice" for item in result["data"])
+
+    # Test NOT with multiple conditions
+    result = await crud.get_multi(
+        async_session, tier_id__not={"between": (1, 3), "eq": 5}
+    )
+    assert len(result["data"]) > 0
+    assert all(
+        not (1 <= item["tier_id"] <= 3) and item["tier_id"] != 5
+        for item in result["data"]
+    )
+    # Should only return records with tier_id = 4 or tier_id = 6
+    assert all(item["tier_id"] in [4, 6] for item in result["data"])

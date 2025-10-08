@@ -291,7 +291,7 @@ async def test_get_multi_or_filtering(async_session, test_model):
     crud = FastCRUD(test_model)
 
     # Test OR with simple conditions on tier_id
-    result = await crud.get_multi(async_session, tier_id__or={"eq": 1, "eq": 6})
+    result = await crud.get_multi(async_session, tier_id__or={"eq": [1, 6]})
     assert len(result["data"]) > 0
     assert all(item["tier_id"] in [1, 6] for item in result["data"])
 
@@ -302,7 +302,7 @@ async def test_get_multi_or_filtering(async_session, test_model):
 
     # Test OR with like conditions on name
     result = await crud.get_multi(
-        async_session, name__or={"like": "Alice%", "like": "Frank%"}
+        async_session, name__or={"like": ["Alice%", "Frank%"]}
     )
     assert len(result["data"]) > 0
     assert all(

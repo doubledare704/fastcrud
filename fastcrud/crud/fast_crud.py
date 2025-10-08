@@ -561,40 +561,66 @@ class FastCRUD(
         return [col == value] if col is not None else []
 
     def _handle_or_filter(self, col: Column, value: dict) -> list[ColumnElement]:
-        """Handle OR conditions (e.g., age__or={'gt': 18, 'lt': 65})."""
+        """Handle OR conditions (e.g., age__or={'gt': 18, 'lt': 65} or name__or={'like': ['Alice%', 'Bob%']})."""
         if not isinstance(value, dict):  # pragma: no cover
             raise ValueError("OR filter value must be a dictionary")
 
         or_conditions = []
         for or_op, or_value in value.items():
-            sqlalchemy_filter = self._get_sqlalchemy_filter(or_op, or_value)
-            if sqlalchemy_filter:
-                condition = (
-                    sqlalchemy_filter(col)(*or_value)
-                    if or_op == "between"
-                    else sqlalchemy_filter(col)(or_value)
-                )
-                or_conditions.append(condition)
+            if isinstance(or_value, list):
+                for single_value in or_value:
+                    sqlalchemy_filter = self._get_sqlalchemy_filter(or_op, single_value)
+                    if sqlalchemy_filter:
+                        condition = (
+                            sqlalchemy_filter(col)(*single_value)
+                            if or_op == "between"
+                            else sqlalchemy_filter(col)(single_value)
+                        )
+                        or_conditions.append(condition)
+            else:
+                sqlalchemy_filter = self._get_sqlalchemy_filter(or_op, or_value)
+                if sqlalchemy_filter:
+                    condition = (
+                        sqlalchemy_filter(col)(*or_value)
+                        if or_op == "between"
+                        else sqlalchemy_filter(col)(or_value)
+                    )
+                    or_conditions.append(condition)
 
         return [or_(*or_conditions)] if or_conditions else []
 
     def _handle_not_filter(self, col: Column, value: dict) -> list[ColumnElement[bool]]:
-        """Handle NOT conditions (e.g., age__not={'eq': 20, 'between': (30, 40)})."""
+        """Handle NOT conditions (e.g., age__not={'eq': 20, 'between': (30, 40)} or name__not={'like': ['Alice%', 'Bob%']})."""
         if not isinstance(value, dict):  # pragma: no cover
             raise ValueError("NOT filter value must be a dictionary")
 
         not_conditions = []
         for not_op, not_value in value.items():
-            sqlalchemy_filter = self._get_sqlalchemy_filter(not_op, not_value)
-            if sqlalchemy_filter is None:  # pragma: no cover
-                continue
+            if isinstance(not_value, list):
+                for single_value in not_value:
+                    sqlalchemy_filter = self._get_sqlalchemy_filter(
+                        not_op, single_value
+                    )
+                    if sqlalchemy_filter is None:  # pragma: no cover
+                        continue
 
-            condition = (
-                sqlalchemy_filter(col)(*not_value)
-                if not_op == "between"
-                else sqlalchemy_filter(col)(not_value)
-            )
-            not_conditions.append(condition)
+                    condition = (
+                        sqlalchemy_filter(col)(*single_value)
+                        if not_op == "between"
+                        else sqlalchemy_filter(col)(single_value)
+                    )
+                    not_conditions.append(condition)
+            else:
+                sqlalchemy_filter = self._get_sqlalchemy_filter(not_op, not_value)
+                if sqlalchemy_filter is None:  # pragma: no cover
+                    continue
+
+                condition = (
+                    sqlalchemy_filter(col)(*not_value)
+                    if not_op == "between"
+                    else sqlalchemy_filter(col)(not_value)
+                )
+                not_conditions.append(condition)
 
         return (
             [and_(*(not_(cond) for cond in not_conditions))] if not_conditions else []
