@@ -4,13 +4,241 @@
 
 The Changelog documents all notable changes made to FastCRUD. This includes new features, bug fixes, and improvements. It's organized by version and date, providing a clear history of the library's development.
 ___
-## [Unreleased]
+
+## [0.17.1] - Oct 8, 2025
+
+#### Added
+- **Multiple Values Support for OR/NOT Filters** by [@igorbenav](https://github.com/igorbenav)
+  - Enhanced `__or` and `__not` operators to accept lists of values for the same operator
+  - Enables multiple LIKE patterns, equality checks, and other operators in single filter conditions
+  - Syntax: `name__or={"like": ["Alice%", "Frank%"]}`
+  - Fully backward compatible with existing filter syntax
+  - Comprehensive test coverage for both SQLAlchemy and SQLModel
 
 #### Fixed
-- get_multi_joined: Correct total_count for many-to-many joins when nest_joins=True by counting distinct base rows only when nesting one-to-many relationships
-- get_multi_joined: Preserve base model list fields when nesting one-to-many relationships (no longer overwritten with empty lists during aggregation)
+- **Dictionary Key Duplication in Tests** by [@igorbenav](https://github.com/igorbenav)
+  - Fixed invalid Python syntax in test files where dictionary keys were duplicated
+  - Updated existing tests to use new list syntax for multiple values
+  - Resolved ruff linting errors in test suite
 
-Thanks to upstream report in https://github.com/benavlabs/fastcrud/issues/255
+#### Improved
+- **Filter Documentation Enhancement** by [@igorbenav](https://github.com/igorbenav)
+  - Updated advanced filters documentation with new list syntax examples
+  - Added comprehensive usage patterns for multiple value filtering
+  - Enhanced examples showing mixed list and single value usage
+
+#### Breaking Changes
+⚠️ **None** - This release maintains full backward compatibility with 0.17.x
+
+#### What's Changed
+* feat: support multiple values for same operator in OR/NOT filters by [@igorbenav](https://github.com/igorbenav)
+* fix: resolve duplicate dictionary keys in test files by [@igorbenav](https://github.com/igorbenav)
+* docs: enhance filtering documentation with list syntax examples by [@igorbenav](https://github.com/igorbenav)
+* test: add comprehensive coverage for multiple value filtering by [@igorbenav](https://github.com/igorbenav)
+
+**Full Changelog**: https://github.com/benavlabs/fastcrud/compare/v0.17.0...v0.17.1
+
+___
+
+## [0.17.0] - Sep 25, 2025
+
+#### Fixed
+- **Pydantic Relationship Fields Issue** by [@doubledare704](https://github.com/doubledare704)
+  - Fixed `get_multi` returning boolean values for Pydantic relationship fields when select schema is provided
+  - Resolved cartesian product issues when including relationship fields in schemas
+  - Enhanced test coverage with comprehensive SQL verification
+- **Delete Methods Filtering & Typing** by [@doubledare704](https://github.com/doubledare704)
+  - Added missing filter support for delete operations
+  - Improved type annotations for delete methods
+  - Enhanced type safety for delete operations
+- **Dynamic Filter Parsing** by [@luminosoda](https://github.com/luminosoda)
+  - Fixed parsing issue with filter operators containing double underscores
+  - Correctly handles complex filter operations like `field__gte`, `field__lt`
+  - Improved robustness of dynamic filter processing
+
+#### Added
+- **Joined Model Filtering for Automatic Endpoints** by [@doubledare704](https://github.com/doubledare704)
+  - Support for dot notation in filter configurations (e.g., `company.name`)
+  - Automatic detection and handling of relationship-based filters
+  - Enhanced FilterConfig to validate and parse joined model filters
+  - Comprehensive filtering across related models in CRUD endpoints
+
+#### Improved
+- **Test Infrastructure Enhancement** by [@doubledare704](https://github.com/doubledare704)
+  - Refactored test suite to eliminate pytest warnings
+  - Enhanced test coverage with SQL-level verification
+  - Better integration with existing test patterns
+  - More descriptive test naming conventions
+
+#### Documentation Updates
+- **Joined Model Filtering Guide** with comprehensive examples and usage patterns
+- **Enhanced Endpoint Documentation** with detailed filtering examples
+- **Improved Test Documentation** with better patterns and conventions
+
+#### Breaking Changes
+⚠️ **None** - This release maintains full backward compatibility with 0.16.x
+
+#### What's Changed
+* add analytics to mkdocs by [@igorbenav](https://github.com/igorbenav) in [#250](https://github.com/benavlabs/fastcrud/pull/250)
+* 🔧Fix for get_multi returns boolean values for pydantic relationship fields, if a select schema is provided #199 by [@doubledare704](https://github.com/doubledare704) in [#245](https://github.com/benavlabs/fastcrud/pull/245)
+* fix: add delete filters and type annotation for delete methods. #147 by [@doubledare704](https://github.com/doubledare704) in [#244](https://github.com/benavlabs/fastcrud/pull/244)
+* feat: implement joined model filtering for automatic endpoints by [@doubledare704](https://github.com/doubledare704) in [#246](https://github.com/benavlabs/fastcrud/pull/246)
+* Fix #248 by [@luminosoda](https://github.com/luminosoda) in [#249](https://github.com/benavlabs/fastcrud/pull/249)
+* update pyproject by [@igorbenav](https://github.com/igorbenav) in [#252](https://github.com/benavlabs/fastcrud/pull/252)
+
+#### New Contributors
+* [@luminosoda](https://github.com/luminosoda) made their first contribution in [#249](https://github.com/benavlabs/fastcrud/pull/249)
+
+**Full Changelog**: https://github.com/benavlabs/fastcrud/compare/v0.16.0...v0.17.0
+
+___
+
+## [0.16.0] - Aug 25, 2025
+
+#### Added
+- **Enhanced Create Method** by [@igorbenav](https://github.com/igorbenav)
+  - Added `schema_to_select` parameter for selecting specific columns
+  - Added `return_as_model` to return Pydantic models instead of SQLAlchemy instances
+  - Flexible data return methods for better API design
+- **Advanced Sorting Functionality** by [@igorbenav](https://github.com/igorbenav)
+  - Multi-field sorting support with ascending/descending control
+  - Flexible sorting syntax like `field1,-field2`
+  - Enhanced query performance and user experience
+- **Dependency-Based Filtering** by [@igorbenav](https://github.com/igorbenav)
+  - Runtime filtering using FastAPI dependencies
+  - Supports row-level access control
+  - Seamless authentication system integration
+
+#### Improved
+- **Enhanced Documentation** with comprehensive examples and usage patterns
+- **Better SQLAlchemy Support** for non-native column types
+- **Type Safety Enhancements** across the codebase
+- **Performance Optimizations** for query handling
+
+#### Breaking Changes
+⚠️ **None** - This release maintains full backward compatibility with 0.15.x
+
+#### What's Changed
+* Enhanced create method with flexible return options by [@igorbenav](https://github.com/igorbenav)
+* Advanced sorting functionality implementation by [@igorbenav](https://github.com/igorbenav)
+* Dependency-based filtering for enhanced security by [@igorbenav](https://github.com/igorbenav)
+* Documentation improvements and examples by [@igorbenav](https://github.com/igorbenav)
+
+**Full Changelog**: https://github.com/benavlabs/fastcrud/compare/v0.15.12...v0.16.0
+
+___
+
+## [0.15.12] - Jun 9, 2025
+
+#### Added
+- **Configurable Response Key** by [@igorbenav](https://github.com/igorbenav)
+  - Added configurable response key for `get_multi` method
+  - Enhanced flexibility in API response structure
+- **Documentation Improvements** by [@igorbenav](https://github.com/igorbenav)
+  - Moved documentation to new location
+  - Added banner and CRUDAdmin mention
+
+#### Improved
+- **Dependency Updates** by [@arab0v](https://github.com/arab0v)
+  - Updated SQLAlchemy-utils dependency to version 0.41.2
+  - Enhanced compatibility and security
+
+#### What's Changed
+* Added banner and CRUDAdmin mention by [@igorbenav](https://github.com/igorbenav)
+* Updated SQLAlchemy-utils dependency to version 0.41.2 by [@arab0v](https://github.com/arab0v)
+* Added configurable response key for get_multi method by [@igorbenav](https://github.com/igorbenav)
+* Moved documentation by [@igorbenav](https://github.com/igorbenav)
+* Bumped project version by [@igorbenav](https://github.com/igorbenav)
+
+#### New Contributors
+* [@arab0v](https://github.com/arab0v) made their first contribution
+
+**Full Changelog**: https://github.com/benavlabs/fastcrud/compare/v0.15.11...v0.15.12
+
+___
+
+## [0.15.11] - May 10, 2025
+
+#### Added
+- **Multi-Field OR Filter Functionality** by [@doubledare704](https://github.com/doubledare704)
+  - Implemented multi-field OR filter functionality
+  - Enhanced querying capabilities across multiple fields
+  - Improved filter flexibility for complex search scenarios
+
+#### What's Changed
+* Add multi-field OR filter functionality by [@doubledare704](https://github.com/doubledare704)
+* Preparations for 0.15.11 by [@igorbenav](https://github.com/igorbenav)
+
+**Full Changelog**: https://github.com/benavlabs/fastcrud/compare/v0.15.10...v0.15.11
+
+___
+
+## [0.15.10] - May 9, 2025
+
+#### Fixed
+- **Metadata Publishing Bug** by [@igorbenav](https://github.com/igorbenav)
+  - Fixed bug in `pyproject.toml` that caused versions 0.15.8 and 0.15.9 to be published only with metadata
+  - Resolved packaging issues for proper distribution
+
+#### Notes
+Versions `0.15.8` and `0.15.9` were published only with metadata because of a bug in `pyproject.toml`. This version resolves the packaging issue.
+
+**Full Changelog**: https://github.com/benavlabs/fastcrud/compare/v0.15.9...v0.15.10
+
+___
+
+## [0.15.9] - May 9, 2025
+
+#### Notes
+This version was published only with metadata due to a bug in `pyproject.toml`. See version 0.15.10 for the fix.
+
+**Full Changelog**: https://github.com/benavlabs/fastcrud/compare/v0.15.8...v0.15.9
+
+___
+
+## [0.15.8] - May 9, 2025
+
+#### Added
+- **New Documentation Page** by [@igorbenav](https://github.com/igorbenav)
+  - Added comprehensive documentation page
+  - Enhanced project documentation structure
+- **UV Package Manager** by [@VDuchauffour](https://github.com/VDuchauffour)
+  - Introduced UV as package manager
+  - Improved development workflow and dependency management
+
+#### Fixed
+- **get_multi_joined Total Count** by [@igorbenav](https://github.com/igorbenav)
+  - Fixed `get_multi_joined` total_count issue with join_model parameter
+  - Resolved counting inconsistencies in joined queries
+- **get_multi_by_cursor Bug** by [@igorbenav](https://github.com/igorbenav)
+  - Fixed code issues in `get_multi_by_cursor` method
+  - Improved cursor-based pagination reliability
+
+#### Improved
+- **Code Optimizations** by [@igorbenav](https://github.com/igorbenav)
+  - Performed code optimizations in fast_crud.py
+  - Enhanced performance and maintainability
+- **Sorting for Nested Fields** by [@igorbenav](https://github.com/igorbenav)
+  - Implemented sorting functionality for nested fields
+  - Enhanced query capabilities for complex data structures
+- **Project Configuration** by [@igorbenav](https://github.com/igorbenav)
+  - Updated pyproject.toml configuration
+  - Updated README.md with latest information
+
+#### What's Changed
+* Added new documentation page by [@igorbenav](https://github.com/igorbenav)
+* Updated pyproject.toml by [@igorbenav](https://github.com/igorbenav)
+* Fixed `get_multi_joined` total_count with join_model parameter by [@igorbenav](https://github.com/igorbenav)
+* Code optimizations in fast_crud.py by [@igorbenav](https://github.com/igorbenav)
+* Introduced UV as package manager by [@VDuchauffour](https://github.com/VDuchauffour)
+* Fixed code in `get_multi_by_cursor` by [@igorbenav](https://github.com/igorbenav)
+* Implemented sorting for nested fields by [@igorbenav](https://github.com/igorbenav)
+* Updated README.md by [@igorbenav](https://github.com/igorbenav)
+
+#### New Contributors
+* [@VDuchauffour](https://github.com/VDuchauffour) made their first contribution
+
+**Full Changelog**: https://github.com/benavlabs/fastcrud/compare/v0.15.7...v0.15.8
 
 ___
 
