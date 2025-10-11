@@ -67,6 +67,7 @@ nav:
   - Showcase: showcase.md
   - Community:
       - Overview: community/overview.md
+      - Discord Community: community.md
       - Contributing: community/CONTRIBUTING.md
       - Showcase Submission: community/showcase_submission.md
       - Code of Conduct: community/CODE_OF_CONDUCT.md

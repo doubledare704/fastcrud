@@ -25,6 +25,7 @@
 <b>FastCRUD</b> is a Python package for <b>FastAPI</b>, offering robust async CRUD operations and flexible endpoint creation utilities, streamlined through advanced features like <b>auto-detected join</b> conditions, <b>dynamic sorting</b>, and offset and cursor <b>pagination</b>.
 </p>
 <p><b>Documentation</b>: <a href="https://benavlabs.github.io/fastcrud/">benavlabs.github.io/fastcrud</a></p>
+<p><b>Discord Community</b>: <a href="https://discord.gg/jhhbkxBmhj">Join our Discord server</a></p>
 
 <p><i>Also take a look at <a href="https://github.com/benavlabs/crudadmin">CRUDAdmin - Modern admin interface for FastAPI</a></i></p>
 <hr>
