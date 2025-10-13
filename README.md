@@ -19,8 +19,8 @@
 <a href="https://codecov.io/gh/benavlabs/fastcrud" > 
   <img src="https://codecov.io/gh/benavlabs/fastcrud/graph/badge.svg?token=J7XUP29RKU"/> 
 </a>
-<a href="https://deepwiki.com/benavlabs/FastAPI-boilerplate">
-  <img src="https://img.shields.io/badge/DeepWiki-1F2937?style=for-the-badge&logoColor=white" alt="DeepWiki">
+<a href="https://deepwiki.com/benavlabs/fastcrud">
+  <img src="https://img.shields.io/badge/DeepWiki-1F2937.svg?logo=book&logoColor=white&labelColor=1F2937&color=34D058" alt="DeepWiki"/>
 </a>
 </p>
 <hr>
