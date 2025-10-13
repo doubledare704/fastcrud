@@ -183,6 +183,87 @@ class UpdateConfig(BaseModel):
         return auto_fields
 
 
+class DeleteConfig(BaseModel):
+    """
+    Configuration for delete operations with automatic field injection.
+
+    Allows you to automatically inject fields before an item is soft-deleted.
+    Perfect for:
+    - Adding deleted_by from authentication context
+    - Setting timestamps (deleted_at)
+    - Adding audit fields for compliance
+    - Soft delete tracking
+
+    Attributes:
+        auto_fields: Dictionary mapping field names to callables that provide values.
+                     The callables will be invoked (with dependency injection if needed)
+                     and their return values will be injected into the soft delete data.
+
+    Examples:
+        Inject deleted_by and timestamps for soft deletes:
+        ```python
+        from datetime import datetime
+        from fastapi import Depends, Cookie
+        from fastcrud import crud_router, DeleteConfig
+
+        # Functions that return values (can use Depends for DI)
+        async def get_current_user_id(session_token: str = Cookie(None)):
+            user = await verify_token(session_token)
+            return user.id
+
+        def get_current_timestamp():
+            return datetime.utcnow()
+
+        delete_config = DeleteConfig(
+            auto_fields={
+                "deleted_by": get_current_user_id,
+                "deleted_at": get_current_timestamp,
+            }
+        )
+
+        router = crud_router(
+            session=get_db,
+            model=Item,
+            create_schema=CreateItemSchema,
+            update_schema=UpdateItemSchema,
+            delete_config=delete_config,
+        )
+        ```
+
+        Authorization check before deletion:
+        ```python
+        async def check_can_delete(
+            session_token: str = Cookie(None),
+            item_id: int = Path(...)
+        ):
+            user = await verify_token(session_token)
+            if not user.can_delete:
+                raise HTTPException(403, "Not authorized to delete")
+            return user.id
+
+        delete_config = DeleteConfig(
+            auto_fields={
+                "deleted_by": check_can_delete,
+            }
+        )
+        ```
+    """
+
+    auto_fields: Annotated[dict[str, Callable[..., Any]], Field(default_factory=dict)]
+
+    @field_validator("auto_fields")
+    @classmethod
+    def check_auto_fields(
+        cls, auto_fields: dict[str, Callable[..., Any]]
+    ) -> dict[str, Callable[..., Any]]:
+        for key, value in auto_fields.items():
+            if not callable(value):
+                raise ValueError(
+                    f"auto_fields['{key}'] must be callable, got {type(value).__name__}"
+                )
+        return auto_fields
+
+
 class FilterConfig(BaseModel):
     filters: Annotated[dict[str, Any], Field(default={})]
 
@@ -215,7 +296,9 @@ class FilterConfig(BaseModel):
         field_path = filter_key.split("__")[0] if "__" in filter_key else filter_key
         return "." in field_path
 
-    def parse_joined_filter(self, filter_key: str) -> tuple[list[str], str, Optional[str]]:
+    def parse_joined_filter(
+        self, filter_key: str
+    ) -> tuple[list[str], str, Optional[str]]:
         """
         Parse a joined filter key into its components.
 
@@ -241,7 +324,9 @@ class FilterConfig(BaseModel):
         return relationship_path, final_field, operator
 
 
-def _validate_joined_filter_path(model: ModelType, relationship_path: list[str], final_field: str) -> bool:
+def _validate_joined_filter_path(
+    model: ModelType, relationship_path: list[str], final_field: str
+) -> bool:
     """
     Validate that a joined filter path exists in the model relationships.
 
@@ -260,7 +345,7 @@ def _validate_joined_filter_path(model: ModelType, relationship_path: list[str],
         if inspector is None:
             return False
 
-        if not hasattr(inspector, 'relationships'):
+        if not hasattr(inspector, "relationships"):
             return False
 
         relationship = inspector.relationships.get(relationship_name)
@@ -273,7 +358,11 @@ def _validate_joined_filter_path(model: ModelType, relationship_path: list[str],
     if final_inspector is None:
         return False
 
-    return hasattr(current_model, final_field) and hasattr(final_inspector.mapper, 'columns') and final_field in [col.name for col in final_inspector.mapper.columns]
+    return (
+        hasattr(current_model, final_field)
+        and hasattr(final_inspector.mapper, "columns")
+        and final_field in [col.name for col in final_inspector.mapper.columns]
+    )
 
 
 def _get_primary_key(
@@ -418,12 +507,12 @@ def _apply_model_pk(**pkeys: dict[str, type]):
 
 
 def _create_auto_field_injector(
-    config: Optional[Union[CreateConfig, UpdateConfig]]
+    config: Optional[Union[CreateConfig, UpdateConfig, DeleteConfig]],
 ) -> Callable[..., dict[str, Any]]:
     """
     Creates a dynamic dependency function that resolves auto_fields.
 
-    Similar to _create_dynamic_filters but for CreateConfig/UpdateConfig.
+    Similar to _create_dynamic_filters but for CreateConfig/UpdateConfig/DeleteConfig.
     Returns a function that can be used with Depends() to inject auto field values.
     """
     if config is None or not config.auto_fields:
@@ -452,7 +541,7 @@ def _create_auto_field_injector(
 def _create_modified_schema(
     original_schema: type[BaseModel],
     exclude_fields: list[str],
-    schema_name: str = "ModifiedSchema"
+    schema_name: str = "ModifiedSchema",
 ) -> type[BaseModel]:
     """
     Creates a new Pydantic schema with specified fields excluded.
@@ -477,7 +566,7 @@ def _create_modified_schema(
 
     new_schema: type[BaseModel] = create_model(
         schema_name,
-        **field_definitions  # type: ignore[arg-type]
+        **field_definitions,  # type: ignore[arg-type]
     )
 
     return new_schema

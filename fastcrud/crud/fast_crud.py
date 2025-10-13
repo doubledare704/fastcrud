@@ -679,16 +679,22 @@ class FastCRUD(
         for relationship_name in relationship_path:
             relationship = getattr(current_model, relationship_name, None)
             if relationship is None:
-                raise ValueError(f"Relationship '{relationship_name}' not found in model '{current_model.__name__}'")
+                raise ValueError(
+                    f"Relationship '{relationship_name}' not found in model '{current_model.__name__}'"
+                )
 
-            if hasattr(relationship.property, 'mapper'):
+            if hasattr(relationship.property, "mapper"):
                 current_model = relationship.property.mapper.class_
             else:
-                raise ValueError(f"Invalid relationship '{relationship_name}' in model '{current_model.__name__}'")
+                raise ValueError(
+                    f"Invalid relationship '{relationship_name}' in model '{current_model.__name__}'"
+                )
 
         target_column = getattr(current_model, final_field, None)
         if target_column is None:
-            raise ValueError(f"Column '{final_field}' not found in model '{current_model.__name__}'")
+            raise ValueError(
+                f"Column '{final_field}' not found in model '{current_model.__name__}'"
+            )
 
         if operator is None:
             return [target_column == value]
@@ -1362,7 +1368,9 @@ class FastCRUD(
 
         return total_count
 
-    def _detect_joined_filters(self, **kwargs: Any) -> tuple[dict[str, Any], dict[str, Any]]:
+    def _detect_joined_filters(
+        self, **kwargs: Any
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         """
         Detect and separate joined model filters from regular filters.
 
@@ -1518,12 +1526,16 @@ class FastCRUD(
 
                 relationship = getattr(self.model, relationship_name, None)
                 if relationship is None:
-                    raise ValueError(f"Relationship '{relationship_name}' not found in model '{self.model.__name__}'")
+                    raise ValueError(
+                        f"Relationship '{relationship_name}' not found in model '{self.model.__name__}'"
+                    )
 
-                if hasattr(relationship.property, 'mapper'):
+                if hasattr(relationship.property, "mapper"):
                     join_model = relationship.property.mapper.class_
                 else:
-                    raise ValueError(f"Invalid relationship '{relationship_name}' in model '{self.model.__name__}'")
+                    raise ValueError(
+                        f"Invalid relationship '{relationship_name}' in model '{self.model.__name__}'"
+                    )
 
                 return await self.get_multi_joined(
                     db=db,
@@ -2666,11 +2678,15 @@ class FastCRUD(
             combined_filters.update(filters.model_dump(exclude_unset=True))
         combined_filters.update(kwargs)
 
-
         if not combined_filters:
-            raise ValueError("No filters provided. To prevent accidental deletion of all records, at least one filter must be specified.")
+            raise ValueError(
+                "No filters provided. To prevent accidental deletion of all records, at least one filter must be specified."
+            )
 
-        if not allow_multiple and (total_count := await self.count(db, **combined_filters)) > 1:
+        if (
+            not allow_multiple
+            and (total_count := await self.count(db, **combined_filters)) > 1
+        ):
             raise MultipleResultsFound(
                 f"Expected exactly one record to delete, found {total_count}."
             )
@@ -2776,7 +2792,9 @@ class FastCRUD(
             return
 
         if not combined_filters:
-            raise ValueError("No filters provided. To prevent accidental deletion of all records, at least one filter must be specified.")
+            raise ValueError(
+                "No filters provided. To prevent accidental deletion of all records, at least one filter must be specified."
+            )
 
         total_count = await self.count(db, **combined_filters)
         if total_count == 0:
@@ -2795,7 +2813,9 @@ class FastCRUD(
             update_values[self.is_deleted_column] = True
 
         if update_values:
-            update_stmt = update(self.model).filter(*parsed_filters).values(**update_values)
+            update_stmt = (
+                update(self.model).filter(*parsed_filters).values(**update_values)
+            )
             await db.execute(update_stmt)
 
         else:

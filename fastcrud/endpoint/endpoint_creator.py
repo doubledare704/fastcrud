@@ -4,6 +4,7 @@ from enum import Enum
 from fastapi import Depends, Body, Query, APIRouter
 from pydantic import ValidationError, BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import NoResultFound
 
 from fastcrud.crud.fast_crud import FastCRUD
 from fastcrud.paginated import ListResponse, PaginatedListResponse
@@ -26,6 +27,7 @@ from .helper import (
     FilterConfig,
     CreateConfig,
     UpdateConfig,
+    DeleteConfig,
     _extract_unique_columns,
     _get_primary_keys,
     _get_python_type,
@@ -263,6 +265,7 @@ class EndpointCreator:
         select_schema: Optional[Type[SelectSchemaType]] = None,
         create_config: Optional[CreateConfig] = None,
         update_config: Optional[UpdateConfig] = None,
+        delete_config: Optional[DeleteConfig] = None,
     ) -> None:
         self._primary_keys = _get_primary_keys(model)
         self._primary_keys_types = {
@@ -304,6 +307,7 @@ class EndpointCreator:
         self.filter_config = filter_config
         self.create_config = create_config
         self.update_config = update_config
+        self.delete_config = delete_config
         self.column_types = _get_column_types(model)
 
         if select_schema is not None:
@@ -325,14 +329,18 @@ class EndpointCreator:
 
             if filter_config.is_joined_filter(key):
                 try:
-                    relationship_path, final_field, operator = filter_config.parse_joined_filter(key)
+                    relationship_path, final_field, operator = (
+                        filter_config.parse_joined_filter(key)
+                    )
 
                     if operator and operator not in supported_filters:
                         raise ValueError(
                             f"Invalid filter op '{operator}': following filter ops are allowed: {supported_filters.keys()}"
                         )
 
-                    if not _validate_joined_filter_path(self.model, relationship_path, final_field):
+                    if not _validate_joined_filter_path(
+                        self.model, relationship_path, final_field
+                    ):
                         raise ValueError(
                             f"Invalid joined filter '{key}': relationship path {'.'.join(relationship_path + [final_field])} not found in model '{self.model.__name__}'"
                         )
@@ -362,7 +370,7 @@ class EndpointCreator:
             request_schema = _create_modified_schema(
                 self.create_schema,
                 self.create_config.exclude_from_schema,
-                f"{self.create_schema.__name__}Modified"
+                f"{self.create_schema.__name__}Modified",
             )
 
         async def endpoint(
@@ -393,7 +401,7 @@ class EndpointCreator:
 
             return await self.crud.create(db, item)
 
-        endpoint.__annotations__['item'] = request_schema
+        endpoint.__annotations__["item"] = request_schema
 
         return endpoint
 
@@ -525,7 +533,7 @@ class EndpointCreator:
             request_schema = _create_modified_schema(
                 self.update_schema,
                 self.update_config.exclude_from_schema,
-                f"{self.update_schema.__name__}Modified"
+                f"{self.update_schema.__name__}Modified",
             )
 
         async def endpoint(
@@ -534,26 +542,44 @@ class EndpointCreator:
             auto_fields: dict = Depends(auto_field_injector),
             **pkeys,
         ):
-            if auto_fields:
-                item_dict = item.model_dump(exclude_unset=True)
-                item_dict.update(auto_fields)
-                return await self.crud.update(db, item_dict, **pkeys)
+            try:
+                if auto_fields:
+                    item_dict = item.model_dump(exclude_unset=True)
+                    item_dict.update(auto_fields)
+                    return await self.crud.update(db, item_dict, **pkeys)
 
-            return await self.crud.update(db, item, **pkeys)
+                return await self.crud.update(db, item, **pkeys)
+            except NoResultFound:
+                raise NotFoundException(detail="Item not found")
 
-        endpoint.__annotations__['item'] = request_schema
+        endpoint.__annotations__["item"] = request_schema
 
         endpoint = _apply_model_pk(**self._primary_keys_types)(endpoint)
 
         return endpoint
 
     def _delete_item(self):
-        """Creates an endpoint for deleting an item from the database."""
+        """Creates an endpoint for deleting (soft delete) an item from the database."""
+        auto_field_injector = _create_auto_field_injector(self.delete_config)
 
-        @_apply_model_pk(**self._primary_keys_types)
-        async def endpoint(db: AsyncSession = Depends(self.session), **pkeys):
-            await self.crud.delete(db, **pkeys)
-            return {"message": "Item deleted successfully"}  # pragma: no cover
+        async def endpoint(
+            db: AsyncSession = Depends(self.session),
+            auto_fields: dict = Depends(auto_field_injector),
+            **pkeys,
+        ):
+            try:
+                await self.crud.delete(db, **pkeys)
+
+                if auto_fields:
+                    await self.crud.update(
+                        db, auto_fields, allow_multiple=False, **pkeys
+                    )
+
+                return {"message": "Item deleted successfully"}  # pragma: no cover
+            except NoResultFound:
+                raise NotFoundException(detail="Item not found")
+
+        endpoint = _apply_model_pk(**self._primary_keys_types)(endpoint)
 
         return endpoint
 
