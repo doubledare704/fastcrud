@@ -23,3 +23,17 @@ async def test_update_item(client: TestClient, async_session, test_model, test_d
     data = result.scalar_one_or_none()
 
     assert data.name == updated_data["name"]
+
+
+@pytest.mark.asyncio
+async def test_update_item_not_found(client: TestClient, async_session, test_model):
+    stmt = select(test_model.id).order_by(test_model.id.desc()).limit(1)
+    result = await async_session.execute(stmt)
+    max_id = result.scalar_one_or_none()
+    non_existent_id = (max_id + 1) if max_id is not None else 1
+
+    update_response = client.patch(
+        f"/test/update/{non_existent_id}", json={"name": "Updated Name"}
+    )
+    assert update_response.status_code == 404
+    assert update_response.json() == {"detail": "Item not found"}

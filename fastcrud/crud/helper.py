@@ -598,15 +598,9 @@ def _nest_multi_join_data(
 
     for row in data:
         if isinstance(row, BaseModel):
-            new_row = {
-                key: ([] if isinstance(value, list) else value)
-                for key, value in row.model_dump().items()
-            }
+            new_row = row.model_dump()
         else:
-            new_row = {
-                key: ([] if isinstance(value, list) else value)
-                for key, value in row.items()
-            }
+            new_row = dict(row)
 
         primary_key_value = new_row[base_primary_key]
         if primary_key_value not in pre_nested_data:

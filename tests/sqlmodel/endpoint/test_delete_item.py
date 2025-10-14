@@ -42,3 +42,15 @@ async def test_db_delete_item(client: TestClient, async_session, test_model, tes
 
     db_item = await async_session.get(test_model, min_id)
     assert db_item is None
+
+
+@pytest.mark.asyncio
+async def test_delete_item_not_found(client: TestClient, async_session, test_model):
+    stmt = select(test_model.id).order_by(test_model.id.desc()).limit(1)
+    result = await async_session.execute(stmt)
+    max_id = result.scalar_one_or_none()
+    non_existent_id = (max_id + 1) if max_id is not None else 1
+
+    response = client.delete(f"/test/delete/{non_existent_id}")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Item not found"}

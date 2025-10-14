@@ -32,6 +32,29 @@ results = await crud.get_multi(
 # Generates: WHERE age < 18 OR age > 65
 ```
 
+You can also provide a list of values for the same operator to create multiple OR conditions:
+
+```python
+# Find users with names starting with Alice OR Frank OR Bob
+results = await crud.get_multi(
+    db,
+    name__or={
+        "like": ["Alice%", "Frank%", "Bob%"]
+    }
+)
+# Generates: WHERE name LIKE 'Alice%' OR name LIKE 'Frank%' OR name LIKE 'Bob%'
+
+# Mix list and single values in OR conditions
+results = await crud.get_multi(
+    db,
+    name__or={
+        "like": ["Alice%", "Frank%"],  # List of patterns
+        "startswith": "Bob"             # Single value
+    }
+)
+# Generates: WHERE name LIKE 'Alice%' OR name LIKE 'Frank%' OR name STARTSWITH 'Bob'
+```
+
 ### Multi-Field OR
 
 Use the special `_or` parameter to apply OR conditions across multiple different fields:
@@ -66,6 +89,19 @@ results = await crud.get_multi(
 # Generates: WHERE NOT age = 20 AND NOT (age BETWEEN 30 AND 40)
 ```
 
+Similar to OR operations, you can provide a list of values for the same operator in NOT conditions:
+
+```python
+# Find users whose names do NOT start with Alice, Frank, or Bob
+results = await crud.get_multi(
+    db,
+    name__not={
+        "like": ["Alice%", "Frank%", "Bob%"]
+    }
+)
+# Generates: WHERE NOT (name LIKE 'Alice%') AND NOT (name LIKE 'Frank%') AND NOT (name LIKE 'Bob%')
+```
+
 ## Supported Operators
 
 - Comparison: `eq`, `gt`, `lt`, `gte`, `lte`, `ne`
@@ -95,6 +131,23 @@ results = await crud.get_multi(
     name__or={
         "startswith": "A",
         "endswith": "smith"
+    }
+)
+
+# Search for multiple patterns with LIKE operator
+results = await crud.get_multi(
+    db,
+    name__or={
+        "like": ["Alice%", "Bob%", "Charlie%"]
+    }
+)
+
+# Combine multiple operators including lists
+results = await crud.get_multi(
+    db,
+    email__or={
+        "ilike": ["%gmail.com", "%yahoo.com"],  # Multiple email domains
+        "endswith": ".edu"                      # OR educational emails
     }
 )
 

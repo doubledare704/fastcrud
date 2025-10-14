@@ -561,40 +561,66 @@ class FastCRUD(
         return [col == value] if col is not None else []
 
     def _handle_or_filter(self, col: Column, value: dict) -> list[ColumnElement]:
-        """Handle OR conditions (e.g., age__or={'gt': 18, 'lt': 65})."""
+        """Handle OR conditions (e.g., age__or={'gt': 18, 'lt': 65} or name__or={'like': ['Alice%', 'Bob%']})."""
         if not isinstance(value, dict):  # pragma: no cover
             raise ValueError("OR filter value must be a dictionary")
 
         or_conditions = []
         for or_op, or_value in value.items():
-            sqlalchemy_filter = self._get_sqlalchemy_filter(or_op, or_value)
-            if sqlalchemy_filter:
-                condition = (
-                    sqlalchemy_filter(col)(*or_value)
-                    if or_op == "between"
-                    else sqlalchemy_filter(col)(or_value)
-                )
-                or_conditions.append(condition)
+            if isinstance(or_value, list):
+                for single_value in or_value:
+                    sqlalchemy_filter = self._get_sqlalchemy_filter(or_op, single_value)
+                    if sqlalchemy_filter:
+                        condition = (
+                            sqlalchemy_filter(col)(*single_value)
+                            if or_op == "between"
+                            else sqlalchemy_filter(col)(single_value)
+                        )
+                        or_conditions.append(condition)
+            else:
+                sqlalchemy_filter = self._get_sqlalchemy_filter(or_op, or_value)
+                if sqlalchemy_filter:
+                    condition = (
+                        sqlalchemy_filter(col)(*or_value)
+                        if or_op == "between"
+                        else sqlalchemy_filter(col)(or_value)
+                    )
+                    or_conditions.append(condition)
 
         return [or_(*or_conditions)] if or_conditions else []
 
     def _handle_not_filter(self, col: Column, value: dict) -> list[ColumnElement[bool]]:
-        """Handle NOT conditions (e.g., age__not={'eq': 20, 'between': (30, 40)})."""
+        """Handle NOT conditions (e.g., age__not={'eq': 20, 'between': (30, 40)} or name__not={'like': ['Alice%', 'Bob%']})."""
         if not isinstance(value, dict):  # pragma: no cover
             raise ValueError("NOT filter value must be a dictionary")
 
         not_conditions = []
         for not_op, not_value in value.items():
-            sqlalchemy_filter = self._get_sqlalchemy_filter(not_op, not_value)
-            if sqlalchemy_filter is None:  # pragma: no cover
-                continue
+            if isinstance(not_value, list):
+                for single_value in not_value:
+                    sqlalchemy_filter = self._get_sqlalchemy_filter(
+                        not_op, single_value
+                    )
+                    if sqlalchemy_filter is None:  # pragma: no cover
+                        continue
 
-            condition = (
-                sqlalchemy_filter(col)(*not_value)
-                if not_op == "between"
-                else sqlalchemy_filter(col)(not_value)
-            )
-            not_conditions.append(condition)
+                    condition = (
+                        sqlalchemy_filter(col)(*single_value)
+                        if not_op == "between"
+                        else sqlalchemy_filter(col)(single_value)
+                    )
+                    not_conditions.append(condition)
+            else:
+                sqlalchemy_filter = self._get_sqlalchemy_filter(not_op, not_value)
+                if sqlalchemy_filter is None:  # pragma: no cover
+                    continue
+
+                condition = (
+                    sqlalchemy_filter(col)(*not_value)
+                    if not_op == "between"
+                    else sqlalchemy_filter(col)(not_value)
+                )
+                not_conditions.append(condition)
 
         return (
             [and_(*(not_(cond) for cond in not_conditions))] if not_conditions else []
@@ -1249,6 +1275,7 @@ class FastCRUD(
         self,
         db: AsyncSession,
         joins_config: Optional[list[JoinConfig]] = None,
+        distinct_on_primary: bool = False,
         **kwargs: Any,
     ) -> int:
         """
@@ -1261,6 +1288,9 @@ class FastCRUD(
         Args:
             db: The database session to use for the operation.
             joins_config: Optional configuration for applying joins in the count query.
+            distinct_on_primary: If True, counts only distinct base model rows when using joins.
+                This is particularly useful for one-to-many relationships to avoid inflated counts
+                from multiple joined rows per base row. Defaults to False.
             **kwargs: Filters to apply for the count, including field names for equality checks or with comparison operators for advanced queries.
 
         Returns:
@@ -1355,8 +1385,12 @@ class FastCRUD(
             if primary_filters:
                 base_query = base_query.where(*primary_filters)
 
-            subquery = base_query.subquery()
-            count_query = select(func.count()).select_from(subquery)
+            if distinct_on_primary:
+                base_query = base_query.distinct()
+                subquery = base_query.subquery()
+                count_query = select(func.count()).select_from(subquery)
+            else:
+                count_query = select(func.count()).select_from(base_query.subquery())
         else:
             count_query = select(func.count()).select_from(self.model)
             if primary_filters:
@@ -2315,8 +2349,15 @@ class FastCRUD(
         response: dict[str, Any] = {"data": nested_data}
 
         if return_total_count:
+            distinct_on_primary = bool(
+                nest_joins
+                and any(j.relationship_type == "one-to-many" for j in join_definitions)
+            )
             total_count: int = await self.count(
-                db=db, joins_config=join_definitions, **kwargs
+                db=db,
+                joins_config=join_definitions,
+                distinct_on_primary=distinct_on_primary,
+                **kwargs,
             )
             response["total_count"] = total_count
 

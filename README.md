@@ -19,12 +19,16 @@
 <a href="https://codecov.io/gh/benavlabs/fastcrud" > 
   <img src="https://codecov.io/gh/benavlabs/fastcrud/graph/badge.svg?token=J7XUP29RKU"/> 
 </a>
+<a href="https://deepwiki.com/benavlabs/fastcrud">
+  <img src="https://img.shields.io/badge/DeepWiki-1F2937.svg?logo=book&logoColor=white&labelColor=1F2937&color=34D058" alt="DeepWiki"/>
+</a>
 </p>
 <hr>
 <p align="justify">
 <b>FastCRUD</b> is a Python package for <b>FastAPI</b>, offering robust async CRUD operations and flexible endpoint creation utilities, streamlined through advanced features like <b>auto-detected join</b> conditions, <b>dynamic sorting</b>, and offset and cursor <b>pagination</b>.
 </p>
 <p><b>Documentation</b>: <a href="https://benavlabs.github.io/fastcrud/">benavlabs.github.io/fastcrud</a></p>
+<p><b>Discord Community</b>: <a href="https://discord.gg/jhhbkxBmhj">Join our Discord server</a></p>
 
 <p><i>Also take a look at <a href="https://github.com/benavlabs/crudadmin">CRUDAdmin - Modern admin interface for FastAPI</a></i></p>
 <hr>
@@ -219,6 +223,8 @@ async def read_item(item_id: int, db: AsyncSession = Depends(get_session)):
 In this example, we define custom endpoints for creating and reading items using FastCRUD directly, providing more flexibility in how the endpoints are structured and how the responses are handled.
 
 To read more detailed descriptions, go to the <a href="https://benavlabs.github.io/fastcrud/">documentation</a>.
+
+🧠 **DeepWiki Docs: [deepwiki.com/benavlabs/FastAPI-boilerplate](https://deepwiki.com/benavlabs/FastAPI-boilerplate)**
 
 <h2>Showcase</h2>
 
