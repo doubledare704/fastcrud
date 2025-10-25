@@ -1,7 +1,7 @@
 from typing import Type, Optional, Callable, Sequence, Union, Any, cast
 from enum import Enum
 
-from fastapi import Depends, Body, Query, APIRouter
+from fastapi import Depends, Body, APIRouter
 from pydantic import ValidationError, BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import NoResultFound
