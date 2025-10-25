@@ -419,6 +419,8 @@ class EndpointCreator:
         ) -> Union[dict[str, Any], PaginatedListResponse, ListResponse]:
             is_paginated = (query.page is not None) or (query.items_per_page is not None)
             has_offset_limit = (query.offset is not None) and (query.limit is not None)
+            default_offset = 0
+            default_limit = 100
 
             if is_paginated and has_offset_limit:
                 raise BadRequestException(
@@ -431,11 +433,11 @@ class EndpointCreator:
                 offset = compute_offset(page=page, items_per_page=items_per_page)  # type: ignore
                 limit = items_per_page
             elif not has_offset_limit:
-                offset = 0
-                limit = 100
+                offset = default_offset
+                limit = default_limit
             else:
-                offset = query.offset
-                limit = query.limit
+                offset = query.offset or default_offset
+                limit = query.limit or default_limit
 
             sort_columns: list[str] = []
             sort_orders: list[str] = []
