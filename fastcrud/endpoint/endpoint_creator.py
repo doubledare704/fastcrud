@@ -8,7 +8,11 @@ from sqlalchemy.exc import NoResultFound
 
 
 from fastcrud.crud.fast_crud import FastCRUD
-from fastcrud.paginated import ListResponse, PaginatedListResponse, PaginatedRequestQuery
+from fastcrud.paginated import (
+    ListResponse,
+    PaginatedListResponse,
+    PaginatedRequestQuery,
+)
 from fastcrud.types import (
     CreateSchemaType,
     DeleteSchemaType,
@@ -417,7 +421,9 @@ class EndpointCreator:
             query: PaginatedRequestQuery = Depends(),
             filters: dict = Depends(dynamic_filters),
         ) -> Union[dict[str, Any], PaginatedListResponse, ListResponse]:
-            is_paginated = (query.page is not None) or (query.items_per_page is not None)
+            is_paginated = (query.page is not None) or (
+                query.items_per_page is not None
+            )
             has_offset_limit = (query.offset is not None) and (query.limit is not None)
             default_offset = 0
             default_limit = 100
@@ -436,8 +442,8 @@ class EndpointCreator:
                 offset = default_offset
                 limit = default_limit
             else:
-                offset = query.offset or default_offset
-                limit = query.limit or default_limit
+                offset = query.offset if query.offset is not None else default_offset
+                limit = query.limit if query.limit is not None else default_limit
 
             sort_columns: list[str] = []
             sort_orders: list[str] = []

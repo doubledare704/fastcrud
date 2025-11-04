@@ -42,7 +42,7 @@ FastCRUD automates the creation of CRUD (Create, Read, Update, Delete) endpoints
     - `page` (optional): The page number, starting from 1.
     - `itemsPerPage` (optional): The number of items per page.
     - `sort` (optional): Sort results by one or more fields. Format: `field1,-field2` where `-` prefix indicates descending order.
-- **Example Requests**: 
+- **Example Requests**:
     - `GET /items?offset=3&limit=4` (pagination)
     - `GET /items?sort=name` (sort by name ascending)
     - `GET /items?sort=-price,name` (sort by price descending, then name ascending)
@@ -589,6 +589,7 @@ FastCRUD provides a `PaginatedRequestQuery` Pydantic model that encapsulates all
 ### Using `PaginatedRequestQuery` in Custom Endpoints
 
 The `PaginatedRequestQuery` model includes all standard pagination parameters:
+
 - `offset` and `limit` for offset-based pagination
 - `page` and `items_per_page` (alias: `itemsPerPage`) for page-based pagination
 - `sort` for sorting by one or more fields
@@ -623,6 +624,46 @@ async def get_custom_items(
     # ... your custom logic here
 
     return {"offset": offset, "limit": limit, "sort": query.sort}
+```
+
+#### Query Parameter Examples
+
+Once the `PaginatedRequestQuery` dependency is added to your endpoint, it automatically accepts the following query parameters:
+
+**Page-based pagination:**
+```bash
+# Basic page-based pagination
+GET /custom/items?page=2&itemsPerPage=20
+
+# With sorting
+GET /custom/items?page=1&itemsPerPage=10&sort=name,-price
+```
+
+**Offset-based pagination:**
+```bash
+# Basic offset-based pagination
+GET /custom/items?offset=10&limit=50
+
+# With sorting
+GET /custom/items?offset=0&limit=100&sort=-created_at
+```
+
+**Sorting only:**
+```bash
+# Single field ascending
+GET /custom/items?sort=name
+
+# Single field descending
+GET /custom/items?sort=-price
+
+# Multiple fields mixed order
+GET /custom/items?sort=category,-price,name
+```
+
+**No parameters (all optional):**
+```bash
+# All parameters will be None
+GET /custom/items
 ```
 
 ### Extending `PaginatedRequestQuery`
@@ -664,6 +705,120 @@ Using `PaginatedRequestQuery` provides several advantages:
 - **OpenAPI Documentation**: Automatic generation of proper API documentation with field descriptions
 - **Type Safety**: Full Pydantic validation for all query parameters
 - **Flexibility**: Easy to extend with custom parameters while maintaining standard pagination
+
+## Reusing Cursor Pagination Query Parameters
+
+FastCRUD also provides a `CursorPaginatedRequestQuery` Pydantic model for cursor-based pagination. This model is ideal for large datasets and infinite scrolling features, as it provides consistent results even when data is being modified.
+
+### Using `CursorPaginatedRequestQuery` in Custom Endpoints
+
+The `CursorPaginatedRequestQuery` model includes cursor-based pagination parameters:
+
+- `cursor` - Cursor value for pagination (typically the ID of the last item from previous page)
+- `limit` - Maximum number of items to return per page (default: 100, max: 1000)
+- `sort_column` - Column name to sort by (default: "id")
+- `sort_order` - Sort order: "asc" or "desc" (default: "asc")
+
+Here's how to use it in a custom endpoint:
+
+```python
+from typing import Annotated
+from fastapi import Depends, APIRouter
+from fastcrud.paginated import CursorPaginatedRequestQuery
+from sqlalchemy.ext.asyncio import AsyncSession
+
+router = APIRouter()
+
+@router.get("/cursor/items")
+async def get_cursor_items(
+    db: Annotated[AsyncSession, Depends(get_session)],
+    query: Annotated[CursorPaginatedRequestQuery, Depends()],
+):
+    """Custom endpoint using cursor-based pagination."""
+    # Use the cursor parameters in your query logic
+    items = await some_crud.get_multi_by_cursor(
+        db,
+        cursor=query.cursor,
+        limit=query.limit,
+        sort_column=query.sort_column,
+        sort_order=query.sort_order,
+    )
+    
+    return items
+```
+
+#### Cursor Pagination Query Parameter Examples
+
+Once the `CursorPaginatedRequestQuery` dependency is added to your endpoint, it automatically accepts the following query parameters:
+
+**Basic cursor pagination:**
+```bash
+# First page (no cursor)
+GET /cursor/items?limit=20
+
+# Next page using cursor from previous response
+GET /cursor/items?cursor=123&limit=20
+```
+
+**With custom sorting:**
+```bash
+# Sort by created_at in descending order
+GET /cursor/items?sort_column=created_at&sort_order=desc&limit=50
+
+# Sort by name in ascending order with cursor
+GET /cursor/items?cursor=456&sort_column=name&sort_order=asc&limit=25
+```
+
+**All parameters:**
+```bash
+# Full cursor pagination with all parameters
+GET /cursor/items?cursor=789&limit=100&sort_column=updated_at&sort_order=desc
+```
+
+**Default behavior:**
+```bash
+# All parameters will use defaults: limit=100, sort_column="id", sort_order="asc"
+GET /cursor/items
+```
+
+### Extending `CursorPaginatedRequestQuery`
+
+You can also subclass `CursorPaginatedRequestQuery` to add custom query parameters:
+
+```python
+from typing import Optional
+from pydantic import Field
+from fastcrud.paginated import CursorPaginatedRequestQuery
+
+class CustomCursorQuery(CursorPaginatedRequestQuery):
+    """Extended cursor query with custom filters."""
+
+    status: Optional[str] = Field(None, description="Filter by status")
+    category: Optional[str] = Field(None, description="Filter by category")
+
+@router.get("/cursor/filtered-items")
+async def get_filtered_cursor_items(
+    db: Annotated[AsyncSession, Depends(get_session)],
+    query: Annotated[CustomCursorQuery, Depends()],
+):
+    """Custom endpoint with additional filter parameters."""
+    # Access both cursor pagination and custom parameters
+    return {
+        "cursor": query.cursor,
+        "limit": query.limit,
+        "sort_column": query.sort_column,
+        "sort_order": query.sort_order,
+        "status": query.status,
+        "category": query.category,
+    }
+```
+
+### Benefits of Cursor Pagination
+
+- **Consistent results**: Data modifications don't affect pagination consistency
+- **Performance**: Efficient for large datasets
+- **Real-time data**: Perfect for infinite scrolling and real-time feeds
+- **No page drift**: Unlike offset-based pagination, items won't be skipped or duplicated when data changes
 
 ## Custom Soft Delete
 
@@ -927,7 +1082,7 @@ GET /items?sort=category,-price,name
 ```
 This sorts by:
 1. `category` (ascending)
-2. `price` (descending) 
+2. `price` (descending)
 3. `name` (ascending)
 
 ### Sorting Format
@@ -952,7 +1107,7 @@ GET /items?sort=-created_at&page=1&itemsPerPage=10&category=Books
 
 This example:
 - Sorts by `created_at` in descending order (newest first)
-- Returns the first page with 10 items per page  
+- Returns the first page with 10 items per page
 - Filters for items in the "Books" category
 
 ## Conclusion

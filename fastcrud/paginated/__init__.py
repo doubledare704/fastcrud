@@ -1,6 +1,11 @@
 from .response import paginated_response
 from .helper import compute_offset
-from .schemas import PaginatedListResponse, ListResponse, PaginatedRequestQuery
+from .schemas import (
+    PaginatedListResponse,
+    ListResponse,
+    PaginatedRequestQuery,
+    CursorPaginatedRequestQuery,
+)
 
 __all__ = [
     "paginated_response",
@@ -8,4 +13,5 @@ __all__ = [
     "PaginatedListResponse",
     "ListResponse",
     "PaginatedRequestQuery",
+    "CursorPaginatedRequestQuery",
 ]
