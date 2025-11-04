@@ -384,6 +384,16 @@ def _get_primary_keys(
     return primary_key_columns
 
 
+def _get_primary_key_names(model: ModelType) -> list[str]:
+    """Get all primary key column names for a SQLAlchemy model."""
+    return [pk.name for pk in _get_primary_keys(model)]
+
+
+def _create_composite_key(item: dict, pk_names: list[str]) -> tuple:
+    """Create a composite key tuple from an item using primary key names."""
+    return tuple(item.get(pk_name) for pk_name in pk_names)
+
+
 def _is_uuid_type(column_type: TypeEngine) -> bool:  # pragma: no cover
     """
     Check if a SQLAlchemy column type represents a UUID.
