@@ -1,5 +1,5 @@
 """
-Tests for PaginatedRequestQuery reusability in custom endpoints.
+Tests for PaginatedRequestQuery reusability in custom endpoints (SQLModel).
 
 This test file demonstrates how the PaginatedRequestQuery schema can be
 reused in custom endpoints, which is the main benefit of issue #258.
