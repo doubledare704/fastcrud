@@ -363,3 +363,94 @@ async def test_nest_multi_join_data_convert_dict_to_schema(async_session):
     assert (
         card_a.articles[0].title == "Article 1"
     ), "Article title should be 'Article 1'."
+
+
+@pytest.mark.asyncio
+async def test_join_prefix_schema_mismatch_validation(async_session):
+    """Test that using return_as_model=True with mismatched join_prefix raises clear error."""
+    cards = [Card(title="Card A")]
+    async_session.add_all(cards)
+    await async_session.flush()
+
+    articles = [
+        Article(title="Article 1", card_id=cards[0].id),
+    ]
+    async_session.add_all(articles)
+    await async_session.commit()
+
+    card_crud = FastCRUD(Card)
+
+    # This should raise a ValueError because join_prefix="post_" creates "post" key
+    # but CardSchema expects "articles" field
+    with pytest.raises(ValueError) as exc_info:
+        await card_crud.get_multi_joined(
+            db=async_session,
+            nest_joins=True,
+            return_as_model=True,
+            schema_to_select=CardSchema,
+            joins_config=[
+                JoinConfig(
+                    model=Article,
+                    join_on=Article.card_id == Card.id,
+                    join_prefix="post_",  # This creates "post" key, not "articles"
+                    join_type="left",
+                    schema_to_select=ArticleSchema,
+                    relationship_type="one-to-many",
+                )
+            ],
+        )
+
+    error_message = str(exc_info.value)
+    assert "join_prefix 'post_'" in error_message
+    assert "creates key 'post'" in error_message
+    assert "not a field in schema CardSchema" in error_message
+    assert "Available fields:" in error_message
+    assert "articles" in error_message
+    assert (
+        "Either change join_prefix to match a schema field or use return_as_model=False"
+        in error_message
+    )
+
+
+@pytest.mark.asyncio
+async def test_join_prefix_schema_match_works(async_session):
+    """Test that matching join_prefix with schema field works correctly."""
+    cards = [Card(title="Card A")]
+    async_session.add_all(cards)
+    await async_session.flush()
+
+    articles = [
+        Article(title="Article 1", card_id=cards[0].id),
+    ]
+    async_session.add_all(articles)
+    await async_session.commit()
+
+    card_crud = FastCRUD(Card)
+
+    # This should work because join_prefix="articles_" creates "articles" key
+    # which matches CardSchema.articles field
+    result = await card_crud.get_multi_joined(
+        db=async_session,
+        nest_joins=True,
+        return_as_model=True,
+        schema_to_select=CardSchema,
+        joins_config=[
+            JoinConfig(
+                model=Article,
+                join_on=Article.card_id == Card.id,
+                join_prefix="articles_",  # This creates "articles" key, matching schema
+                join_type="left",
+                schema_to_select=ArticleSchema,
+                relationship_type="one-to-many",
+            )
+        ],
+    )
+
+    assert result is not None
+    assert "data" in result
+    data = result["data"]
+    assert len(data) == 1
+    card_a = data[0]
+    assert isinstance(card_a, CardSchema)
+    assert len(card_a.articles) == 1
+    assert card_a.articles[0].title == "Article 1"
