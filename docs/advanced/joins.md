@@ -21,6 +21,17 @@ FastCRUD simplifies CRUD operations while offering capabilities for handling com
 
     For `"many-to-many"`, you don't need to pass a `relationship_type`.
 
+## Understanding `CountConfig`
+
+`CountConfig` is a configuration mechanism for counting related objects in joined queries. This is particularly useful for many-to-many relationships where you want to include counts of related objects without actually joining the data. It contains the following key attributes:
+
+- **`model`**: The SQLAlchemy model to count.
+- **`join_on`**: The condition defining how the count query connects to the primary model.
+- **`alias`**: An optional alias for the count column in the result. Defaults to `"{model.__tablename__}_count"`.
+- **`filters`**: An optional dictionary to apply filters directly to the count query.
+
+The count is implemented as a scalar subquery, which means all records from the primary model will be returned with their respective counts (including 0 for records with no related objects).
+
 ## Applying Joins in FastCRUD Methods
 
 ??? example "Models - `Tier`, `Department`, `User`, `Story`, `Task`"
@@ -516,6 +527,151 @@ Now, `projects_with_participants['data']` will contain projects along with their
 }
 ```
 
+### Counting Related Objects with `CountConfig`
+
+FastCRUD provides `CountConfig` for efficiently counting related objects without fetching the actual data. This is particularly useful for many-to-many relationships or when you need to display counts alongside your main data.
+
+#### Basic Usage
+
+Use `CountConfig` with the `counts_config` parameter in `get_multi_joined`:
+
+```python
+from fastcrud import FastCRUD, CountConfig
+
+# Count participants for each project
+project_crud = FastCRUD(Project)
+
+count_config = CountConfig(
+    model=Participant,
+    join_on=(Participant.id == ProjectsParticipantsAssociation.participant_id)
+           & (ProjectsParticipantsAssociation.project_id == Project.id),
+    alias="participants_count",
+)
+
+result = await project_crud.get_multi_joined(
+    db=session,
+    counts_config=[count_config],
+)
+```
+
+This will return data like:
+
+```json
+{
+    "data": [
+        {"id": 1, "name": "Project Alpha", "participants_count": 3},
+        {"id": 2, "name": "Project Beta", "participants_count": 2},
+        {"id": 3, "name": "Project Gamma", "participants_count": 0}
+    ],
+    "total_count": 3
+}
+```
+
+#### Counting with Filters
+
+Apply filters to count only specific related objects:
+
+```python
+# Count only developers for each project
+count_config = CountConfig(
+    model=Participant,
+    join_on=(Participant.id == ProjectsParticipantsAssociation.participant_id)
+           & (ProjectsParticipantsAssociation.project_id == Project.id),
+    alias="developers_count",
+    filters={"role": "Developer"},
+)
+
+result = await project_crud.get_multi_joined(
+    db=session,
+    counts_config=[count_config],
+)
+```
+
+#### Multiple Count Configurations
+
+You can use multiple `CountConfig` instances to get different counts:
+
+```python
+# Count all participants and developers separately
+all_participants_count = CountConfig(
+    model=Participant,
+    join_on=(Participant.id == ProjectsParticipantsAssociation.participant_id)
+           & (ProjectsParticipantsAssociation.project_id == Project.id),
+    alias="all_participants_count",
+)
+
+developers_count = CountConfig(
+    model=Participant,
+    join_on=(Participant.id == ProjectsParticipantsAssociation.participant_id)
+           & (ProjectsParticipantsAssociation.project_id == Project.id),
+    alias="developers_count",
+    filters={"role": "Developer"},
+)
+
+result = await project_crud.get_multi_joined(
+    db=session,
+    counts_config=[all_participants_count, developers_count],
+)
+```
+
+#### One-to-Many Relationships
+
+`CountConfig` works with one-to-many relationships as well:
+
+```python
+# Count articles for each author
+author_crud = FastCRUD(Author)
+
+count_config = CountConfig(
+    model=Article,
+    join_on=Article.author_id == Author.id,
+    alias="articles_count",
+)
+
+result = await author_crud.get_multi_joined(
+    db=session,
+    counts_config=[count_config],
+)
+```
+
+#### Combining with Regular Joins
+
+You can use `CountConfig` alongside `JoinConfig` for comprehensive data retrieval:
+
+```python
+# Get project details with participant information AND counts
+joins_config = [
+    JoinConfig(
+        model=ProjectsParticipantsAssociation,
+        join_on=Project.id == ProjectsParticipantsAssociation.project_id,
+        join_prefix="pp_",
+        join_type="inner",
+    ),
+    JoinConfig(
+        model=Participant,
+        join_on=ProjectsParticipantsAssociation.participant_id == Participant.id,
+        join_prefix="participant_",
+        join_type="inner",
+    ),
+]
+
+counts_config = [
+    CountConfig(
+        model=Participant,
+        join_on=(Participant.id == ProjectsParticipantsAssociation.participant_id)
+               & (ProjectsParticipantsAssociation.project_id == Project.id),
+        alias="total_participants",
+    )
+]
+
+result = await project_crud.get_multi_joined(
+    db=session,
+    joins_config=joins_config,
+    counts_config=counts_config,
+    nest_joins=True,
+)
+```
+
 #### Practical Tips for Advanced Joins
 
 - **Prefixing**: Always use the `join_prefix` attribute to avoid column name collisions, especially in complex joins involving multiple models or self-referential joins.
@@ -525,4 +681,4 @@ Now, `projects_with_participants['data']` will contain projects along with their
 
 ## Conclusion
 
-FastCRUD's support for join operations enhances the ability to perform complex queries across related models in FastAPI applications. By understanding and utilizing the `JoinConfig` class within the `count`, `get_joined`, and `get_multi_joined` methods, developers can craft powerful data retrieval queries.
+FastCRUD's support for join operations enhances the ability to perform complex queries across related models in FastAPI applications. By understanding and utilizing the `JoinConfig` and `CountConfig` classes within the `count`, `get_joined`, and `get_multi_joined` methods, developers can craft powerful data retrieval queries that efficiently handle both data fetching and counting operations.
