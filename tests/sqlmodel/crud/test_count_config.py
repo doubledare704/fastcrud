@@ -1,44 +1,57 @@
 import pytest
-from sqlalchemy import Column, Integer, String, ForeignKey, text
-from sqlalchemy.orm import declarative_base
+from sqlalchemy import text
+from sqlmodel import SQLModel, Field, Relationship
+from typing import Optional, List
 from fastcrud import FastCRUD, CountConfig
-from ...sqlalchemy.conftest import (
+from ...sqlmodel.conftest import (
     Project,
     Participant,
     ProjectsParticipantsAssociation,
-    Author,
-    Article,
 )
 
-Base = declarative_base()
+
+# Additional models for SQLModel tests
+class Author(SQLModel, table=True):
+    __tablename__ = "authors"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    articles: List["ArticleWithAuthor"] = Relationship(back_populates="author")
 
 
-class CustomPKModel(Base):
+class ArticleWithAuthor(SQLModel, table=True):
+    __tablename__ = "articles_with_author"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    title: str
+    author_id: Optional[int] = Field(default=None, foreign_key="authors.id")
+    author: Optional[Author] = Relationship(back_populates="articles")
+
+
+class CustomPKModel(SQLModel, table=True):
     __tablename__ = "custom_pk_model"
-    user_code = Column(String(10), primary_key=True)
-    name = Column(String(50))
+    user_code: str = Field(primary_key=True, max_length=10)
+    name: str = Field(max_length=50)
 
 
-class RelatedModel(Base):
+class RelatedModel(SQLModel, table=True):
     __tablename__ = "related_model"
-    id = Column(Integer, primary_key=True)
-    user_code = Column(String(10), ForeignKey("custom_pk_model.user_code"))
-    description = Column(String(100))
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_code: str = Field(foreign_key="custom_pk_model.user_code", max_length=10)
+    description: str = Field(max_length=100)
 
 
-class CompositePKModel(Base):
+class CompositePKModel(SQLModel, table=True):
     __tablename__ = "composite_pk_model"
-    part_a = Column(String(10), primary_key=True)
-    part_b = Column(Integer, primary_key=True)
-    data = Column(String(50))
+    part_a: str = Field(primary_key=True, max_length=10)
+    part_b: int = Field(primary_key=True)
+    data: str = Field(max_length=50)
 
 
-class CompositePKRelated(Base):
+class CompositePKRelated(SQLModel, table=True):
     __tablename__ = "composite_pk_related"
-    id = Column(Integer, primary_key=True)
-    part_a = Column(String(10))
-    part_b = Column(Integer)
-    info = Column(String(50))
+    id: Optional[int] = Field(default=None, primary_key=True)
+    part_a: str = Field(max_length=10)
+    part_b: int
+    info: str = Field(max_length=50)
 
 
 @pytest.mark.asyncio
@@ -202,11 +215,11 @@ async def test_count_config_one_to_many(async_session, test_data):
     async_session.add_all([author1, author2, author3])
     await async_session.commit()
 
-    # Create articles
-    article1 = Article(id=1, title="Article 1", content="Content 1", author_id=1)
-    article2 = Article(id=2, title="Article 2", content="Content 2", author_id=1)
-    article3 = Article(id=3, title="Article 3", content="Content 3", author_id=1)
-    article4 = Article(id=4, title="Article 4", content="Content 4", author_id=2)
+    # Create articles with proper author_id field
+    article1 = ArticleWithAuthor(id=1, title="Article 1", author_id=1)
+    article2 = ArticleWithAuthor(id=2, title="Article 2", author_id=1)
+    article3 = ArticleWithAuthor(id=3, title="Article 3", author_id=1)
+    article4 = ArticleWithAuthor(id=4, title="Article 4", author_id=2)
     # Author 3 has no articles
 
     async_session.add_all([article1, article2, article3, article4])
@@ -216,8 +229,8 @@ async def test_count_config_one_to_many(async_session, test_data):
     author_crud = FastCRUD(Author)
 
     count_config = CountConfig(
-        model=Article,
-        join_on=Article.author_id == Author.id,
+        model=ArticleWithAuthor,
+        join_on=ArticleWithAuthor.author_id == Author.id,
         alias="articles_count",
     )
 
@@ -245,7 +258,7 @@ async def test_count_config_default_alias(async_session, test_data):
     async_session.add(author1)
     await async_session.commit()
 
-    article1 = Article(id=1, title="Article 1", content="Content 1", author_id=1)
+    article1 = ArticleWithAuthor(id=1, title="Article 1", author_id=1)
     async_session.add(article1)
     await async_session.commit()
 
@@ -253,9 +266,9 @@ async def test_count_config_default_alias(async_session, test_data):
     author_crud = FastCRUD(Author)
 
     count_config = CountConfig(
-        model=Article,
-        join_on=Article.author_id == Author.id,
-        # No alias specified - should default to "articles_count"
+        model=ArticleWithAuthor,
+        join_on=ArticleWithAuthor.author_id == Author.id,
+        # No alias specified - should default to "articles_with_author_count"
     )
 
     result = await author_crud.get_multi_joined(
@@ -265,8 +278,8 @@ async def test_count_config_default_alias(async_session, test_data):
 
     assert result["total_count"] == 1
     assert len(result["data"]) == 1
-    assert "articles_count" in result["data"][0]
-    assert result["data"][0]["articles_count"] == 1
+    assert "articles_with_author_count" in result["data"][0]
+    assert result["data"][0]["articles_with_author_count"] == 1
 
 
 @pytest.mark.asyncio
@@ -290,7 +303,6 @@ async def test_count_config_with_joins(async_session, test_data):
     await async_session.commit()
 
     # Test using both joins_config and counts_config
-
     project_crud = FastCRUD(Project)
 
     # We can use joins_config to get participant details and counts_config to get the count
