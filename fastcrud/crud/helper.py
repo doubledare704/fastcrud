@@ -713,6 +713,18 @@ def _nest_multi_join_data(
                 "schema_to_select must be provided when return_as_model is True."
             )
 
+        schema_fields = set(schema_to_select.model_fields.keys())
+        for join_config in joins_config:
+            if join_config.join_prefix:
+                join_key = join_config.join_prefix.rstrip("_")
+                if join_key not in schema_fields:
+                    raise ValueError(
+                        f"join_prefix '{join_config.join_prefix}' creates key '{join_key}' "
+                        f"which is not a field in schema {schema_to_select.__name__}. "
+                        f"Available fields: {sorted(schema_fields)}. "
+                        f"Either change join_prefix to match a schema field or use return_as_model=False."
+                    )
+
         converted_data = []
         for item in nested_data:
             if nested_schema_to_select:
