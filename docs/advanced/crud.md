@@ -269,6 +269,10 @@ items = await item_crud.get_multi(db=db, limit=None)
 
 To facilitate complex data relationships, `get_joined` and `get_multi_joined` can be configured to handle joins with multiple models. This is achieved using the `joins_config` parameter, where you can specify a list of `JoinConfig` instances, each representing a distinct join configuration.
 
+Additionally, `get_multi_joined` supports counting related objects using the `counts_config` parameter with `CountConfig` instances. This allows you to efficiently get counts of related objects (like counting participants per project) without fetching the actual related data.
+
+For detailed examples and usage patterns, see the [joins documentation](joins.md).
+
 ## Upserting multiple records using `upsert_multi`
 
 FastCRUD provides an `upsert_multi` method to efficiently upsert multiple records in a single operation. This method is particularly useful when you need to insert new records or update existing ones based on a unique constraint.
