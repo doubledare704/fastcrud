@@ -2282,7 +2282,9 @@ class FastCRUD(
                 "Cannot use both single join parameters and joins_config simultaneously."
             )
         elif not joins_config and not join_model and not counts_config:
-            raise ValueError("You need one of join_model, joins_config, or counts_config.")
+            raise ValueError(
+                "You need one of join_model, joins_config, or counts_config."
+            )
 
         if (limit is not None and limit < 0) or offset < 0:
             raise ValueError("Limit and offset must be non-negative.")
@@ -2325,17 +2327,26 @@ class FastCRUD(
                 count_model = count.model
                 count_alias = count.alias or f"{count_model.__tablename__}_count"
 
-                # Create a scalar subquery for the count
-                count_subquery = select(func.count(count_model.id)).where(count.join_on)
+                count_primary_keys = _get_primary_keys(count_model)
+                if not count_primary_keys:
+                    raise ValueError(
+                        f"The model '{count_model.__name__}' does not have a primary key defined, which is required for counting."
+                    )
+
+                count_subquery = select(func.count()).where(count.join_on)
 
                 # Apply filters if provided
                 if count.filters:
-                    count_filters = self._parse_filters(model=count_model, **count.filters)
+                    count_filters = self._parse_filters(
+                        model=count_model, **count.filters
+                    )
                     if count_filters:
                         count_subquery = count_subquery.filter(*count_filters)
 
                 # Add the count column as a scalar subquery
-                stmt = stmt.add_columns(count_subquery.scalar_subquery().label(count_alias))
+                stmt = stmt.add_columns(
+                    count_subquery.scalar_subquery().label(count_alias)
+                )
 
         primary_filters = self._parse_filters(**kwargs)
         if primary_filters:

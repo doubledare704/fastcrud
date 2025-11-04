@@ -76,6 +76,7 @@ class CountConfig(BaseModel):
         # Example: [{"id": 1, "term": "cats", "videos_count": 5}, ...]
         ```
     """
+
     model: Any
     join_on: Any
     alias: Optional[str] = None
