@@ -201,6 +201,46 @@ This works for both `get_joined` and `get_multi_joined`.
 
     Note that the final `"_"` in the passed `"tier_"` is stripped.
 
+!!! WARNING "join_prefix and return_as_model Compatibility"
+
+    When using `return_as_model=True` with `nest_joins=True`, ensure that your `join_prefix` (minus trailing "_") matches the field name in your Pydantic schema. Otherwise, FastCRUD will raise a `ValueError` with clear guidance on how to fix the mismatch.
+    
+    **❌ This will raise an error:**
+    ```python
+    # Schema expects "children" field
+    class ParentRead(BaseModel):
+        children: list[ChildRead] = []
+    
+    # But join_prefix creates "child" key
+    join_config = JoinConfig(
+        join_prefix="child_",  # Creates "child" key
+        relationship_type="one-to-many"
+    )
+    
+    result = await crud.get_joined(
+        return_as_model=True,  # Will raise ValueError
+        nest_joins=True,
+        joins_config=[join_config]
+    )
+    # Error: join_prefix 'child_' creates key 'child' which is not a field in schema ParentRead
+    ```
+    
+    **✅ This works correctly:**
+    ```python
+    # Match the schema field name
+    join_config = JoinConfig(
+        join_prefix="children_",  # Creates "children" key to match schema
+        relationship_type="one-to-many"
+    )
+    
+    result = await crud.get_joined(
+        return_as_model=True,
+        nest_joins=True,
+        joins_config=[join_config]
+    )
+    # Result: ParentRead(children=[...actual children...])
+    ```
+
 ### Complex Joins Using `JoinConfig`
 
 When dealing with more complex join conditions, such as multiple joins, self-referential joins, or needing to specify aliases and filters, `JoinConfig` instances become the norm. They offer granular control over each join's aspects, enabling precise and efficient data retrieval.
