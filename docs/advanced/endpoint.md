@@ -42,7 +42,7 @@ FastCRUD automates the creation of CRUD (Create, Read, Update, Delete) endpoints
     - `page` (optional): The page number, starting from 1.
     - `itemsPerPage` (optional): The number of items per page.
     - `sort` (optional): Sort results by one or more fields. Format: `field1,-field2` where `-` prefix indicates descending order.
-- **Example Requests**: 
+- **Example Requests**:
     - `GET /items?offset=3&limit=4` (pagination)
     - `GET /items?sort=name` (sort by name ascending)
     - `GET /items?sort=-price,name` (sort by price descending, then name ascending)
@@ -844,7 +844,7 @@ GET /items?sort=category,-price,name
 ```
 This sorts by:
 1. `category` (ascending)
-2. `price` (descending) 
+2. `price` (descending)
 3. `name` (ascending)
 
 ### Sorting Format
@@ -869,8 +869,504 @@ GET /items?sort=-created_at&page=1&itemsPerPage=10&category=Books
 
 This example:
 - Sorts by `created_at` in descending order (newest first)
-- Returns the first page with 10 items per page  
+- Returns the first page with 10 items per page
 - Filters for items in the "Books" category
+
+## Server-Side Field Injection
+
+FastCRUD provides automatic field injection through `CreateConfig`, `UpdateConfig`, and `DeleteConfig` classes. This feature allows you to automatically inject values for fields before data is written to the database, perfect for authentication context, timestamps, and audit fields.
+
+### When to Use Server-Side Field Injection
+
+This feature is essential for building secure, multi-user applications where you need to:
+
+#### 1. **Prevent Security Vulnerabilities**
+When you have user-specific data that should never be set by the frontend:
+
+```python
+# SECURITY RISK: Frontend can set any user_id
+class ItemCreateSchema(BaseModel):
+    name: str
+    user_id: int  # Frontend could submit ANY user ID!
+
+# SECURE: user_id automatically injected from auth context
+class ItemCreateSchema(BaseModel):
+    name: str
+    # user_id excluded - comes from authentication
+
+create_config = CreateConfig(
+    auto_fields={
+        "user_id": get_current_user_id,  # From JWT/session
+    },
+    exclude_from_schema=["user_id"]  # Hidden from API docs
+)
+```
+
+#### 2. **Automatic Audit Trails**
+For compliance and debugging, automatically track who changed what and when:
+
+```python
+# Automatically adds audit fields to every record
+create_config = CreateConfig(
+    auto_fields={
+        "created_by": get_current_user_id,
+        "created_at": get_current_timestamp,
+        "ip_address": get_client_ip,
+        "user_agent": get_user_agent,
+    },
+    exclude_from_schema=["created_by", "created_at", "ip_address", "user_agent"]
+)
+
+update_config = UpdateConfig(
+    auto_fields={
+        "updated_by": get_current_user_id,
+        "updated_at": get_current_timestamp,
+    },
+    exclude_from_schema=["updated_by", "updated_at"]
+)
+```
+
+#### 3. **Multi-Tenant Applications**
+Automatically scope data to the correct organization/tenant:
+
+```python
+async def get_current_org_id(user: User = Depends(get_current_user)):
+    return user.organization_id
+
+create_config = CreateConfig(
+    auto_fields={
+        "organization_id": get_current_org_id,  # Auto-scoped
+        "user_id": lambda user=Depends(get_current_user): user.id,
+    },
+    exclude_from_schema=["organization_id", "user_id"]
+)
+
+# Combined with filtering - users only see their org's data
+router = crud_router(
+    # ... other params
+    create_config=create_config,
+    filter_config=FilterConfig(organization_id=get_current_org_id),
+)
+```
+
+#### 4. **Workflow and Status Management**
+Automatically set status fields based on business logic:
+
+```python
+def get_initial_status():
+    return "pending_review"
+
+async def get_approver_id(user: User = Depends(get_current_user)):
+    if user.role == "admin":
+        return None  # Admins auto-approve
+    return user.manager_id
+
+create_config = CreateConfig(
+    auto_fields={
+        "status": get_initial_status,
+        "assigned_to": get_approver_id,
+        "submitted_by": get_current_user_id,
+    }
+)
+```
+
+#### 5. **Preventing Data Tampering**
+When you need to ensure certain fields can only be set server-side:
+
+```python
+# Frontend cannot manipulate pricing or financial data
+create_config = CreateConfig(
+    auto_fields={
+        "price": calculate_dynamic_price,     # Based on business rules
+        "discount": get_user_discount_rate,   # Based on user tier
+        "tax_rate": get_applicable_tax_rate,  # Based on location
+    },
+    exclude_from_schema=["price", "discount", "tax_rate"]
+)
+```
+
+## Common Use Cases for Server-Side Field Injection
+
+Server-side field injection is particularly valuable in these common scenarios. The following table provides a quick overview of the most frequent use cases and their solutions:
+
+| Scenario | Problem | Solution |
+|----------|---------|----------|
+| **User Items** | Frontend could create items for other users | Auto-inject `user_id` from authentication |
+| **Audit Logs** | Manual timestamp/user tracking is error-prone | Auto-inject `created_by`, `created_at`, etc. |
+| **Multi-Tenant** | Users could access other organizations' data | Auto-inject `organization_id` + filter by it |
+| **Approval Workflows** | Need to track who submitted what when | Auto-inject submitter, timestamp, initial status |
+| **Financial Data** | Pricing must be server-controlled | Auto-calculate and inject prices, taxes, discounts |
+| **Content Moderation** | All posts need initial review status | Auto-inject `status: "pending"` |
+
+These scenarios address security and data integrity requirements where client-provided data cannot be trusted or where server-side business logic must control field values. Automatic field injection prevents manual validation errors and ensures consistent data handling.
+
+Below are detailed examples and explanations for each scenario:
+
+### User-Scoped Data
+**Problem**: Frontend applications can potentially create data for other users by manipulating user IDs in requests.
+
+**Solution**: Auto-inject the authenticated user's ID from the session/JWT token.
+
+```python
+create_config = CreateConfig(
+    auto_fields={"user_id": get_current_user_id},
+    exclude_from_schema=["user_id"]
+)
+```
+
+This ensures that when a user creates an item, it's automatically associated with their account, preventing unauthorized data creation.
+
+### Audit Trail Requirements
+**Problem**: Manual tracking of who modified what and when is error-prone and often forgotten.
+
+**Solution**: Automatically inject audit fields for every operation.
+
+```python
+create_config = CreateConfig(
+    auto_fields={
+        "created_by": get_current_user_id,
+        "created_at": get_current_timestamp,
+        "created_ip": get_client_ip,
+    }
+)
+
+update_config = UpdateConfig(
+    auto_fields={
+        "updated_by": get_current_user_id, 
+        "updated_at": get_current_timestamp,
+    }
+)
+```
+
+Perfect for compliance requirements, debugging, and maintaining data lineage.
+
+### Multi-Tenant Applications
+**Problem**: In multi-tenant systems, users could potentially access or modify data from other organizations.
+
+**Solution**: Auto-inject organization/tenant identifiers and combine with filtering.
+
+```python
+create_config = CreateConfig(
+    auto_fields={"organization_id": get_current_org_id},
+    exclude_from_schema=["organization_id"]
+)
+
+# Also filter reads by organization
+router = crud_router(
+    # ... other config
+    filter_config=FilterConfig(organization_id=get_current_org_id)
+)
+```
+
+This creates complete data isolation between tenants automatically.
+
+### Approval and Workflow Systems
+**Problem**: Tracking submission details, approval status, and workflow state requires consistent data entry.
+
+**Solution**: Auto-inject workflow metadata based on business rules.
+
+```python
+async def determine_initial_status(user = Depends(get_current_user)):
+    if user.role == "admin":
+        return "approved"
+    return "pending_review"
+
+create_config = CreateConfig(
+    auto_fields={
+        "status": determine_initial_status,
+        "submitted_by": get_current_user_id,
+        "submitted_at": get_current_timestamp,
+    }
+)
+```
+
+Ensures consistent workflow state management without manual intervention.
+
+### Financial and Pricing Data
+**Problem**: Pricing, taxes, and financial calculations must be controlled server-side to prevent manipulation.
+
+**Solution**: Auto-calculate and inject financial fields based on business logic.
+
+```python
+async def calculate_price(item_data, user = Depends(get_current_user)):
+    base_price = get_base_price(item_data.product_id)
+    user_discount = get_user_discount_rate(user.tier)
+    return base_price * (1 - user_discount)
+
+create_config = CreateConfig(
+    auto_fields={
+        "price": calculate_price,
+        "tax_rate": get_applicable_tax_rate,
+        "currency": lambda: "USD",
+    },
+    exclude_from_schema=["price", "tax_rate", "currency"]
+)
+```
+
+Prevents price manipulation while ensuring accurate calculations.
+
+### Content Moderation
+**Problem**: User-generated content needs consistent initial moderation status and safety checks.
+
+**Solution**: Auto-inject moderation fields and initial review status.
+
+```python
+async def get_initial_moderation_status(content: str):
+    if contains_flagged_content(content):
+        return "requires_review"
+    return "approved"
+
+create_config = CreateConfig(
+    auto_fields={
+        "moderation_status": get_initial_moderation_status,
+        "flagged_at": lambda: None,  # Will be set later if flagged
+        "reviewed_by": lambda: None,  # Will be set when reviewed
+    }
+)
+```
+
+Ensures all content goes through proper moderation workflows automatically.
+
+### Real-World Example
+
+Here's a complete example for a multi-user blog application:
+
+```python
+from datetime import datetime
+from fastapi import Depends, HTTPException
+from fastcrud import crud_router, CreateConfig, UpdateConfig, FilterConfig
+
+# Authentication dependency
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    user = await verify_jwt_token(token)
+    if not user:
+        raise HTTPException(401, "Invalid token")
+    return user
+
+# Auto-field functions
+async def get_user_id(user = Depends(get_current_user)):
+    return user.id
+
+async def get_user_org(user = Depends(get_current_user)):
+    return user.organization_id
+
+def get_timestamp():
+    return datetime.utcnow()
+
+def get_initial_post_status():
+    return "draft"  # All posts start as drafts
+
+# Schema - notice what's missing!
+class PostCreateSchema(BaseModel):
+    title: str
+    content: str
+    # NO user_id, organization_id, timestamps, etc.
+
+# Configuration
+create_config = CreateConfig(
+    auto_fields={
+        "author_id": get_user_id,           # Who wrote it
+        "organization_id": get_user_org,     # Which org
+        "status": get_initial_post_status,   # Initial state
+        "created_at": get_timestamp,         # When
+        "version": lambda: 1,                # Version control
+    },
+    exclude_from_schema=[
+        "author_id", "organization_id", "status",
+        "created_at", "version"
+    ]
+)
+
+update_config = UpdateConfig(
+    auto_fields={
+        "updated_at": get_timestamp,
+        "updated_by": get_user_id,
+    },
+    exclude_from_schema=["updated_at", "updated_by"]
+)
+
+# Router with automatic security
+router = crud_router(
+    session=get_db,
+    model=Post,
+    create_schema=PostCreateSchema,
+    update_schema=PostUpdateSchema,
+    create_config=create_config,
+    update_config=update_config,
+    # Users only see posts from their organization
+    filter_config=FilterConfig(organization_id=get_user_org),
+)
+```
+
+**Result**:
+
+- Users can only create posts for themselves
+- All posts are automatically scoped to their organization
+- Complete audit trail is maintained
+- Frontend cannot tamper with sensitive fields
+- Clean API schema without clutter
+
+### Auto Field Injection
+
+Auto fields are automatically injected values that are added to your data before it's written to the database. These values are provided by callable functions that can use FastAPI's dependency injection system.
+
+#### CreateConfig
+
+Use `CreateConfig` to inject fields during create operations:
+
+```python
+from datetime import datetime
+from fastapi import Depends, Cookie
+from fastcrud import crud_router, CreateConfig
+
+# Functions that return values (can use Depends for DI)
+async def get_current_user_id(session_token: str = Cookie(None)):
+    user = await verify_token(session_token)
+    return user.id
+
+def get_current_timestamp():
+    return datetime.utcnow()
+
+create_config = CreateConfig(
+    auto_fields={
+        "user_id": get_current_user_id,      # Injected from cookie
+        "created_by": get_current_user_id,   # Same user
+        "created_at": get_current_timestamp, # Timestamp
+    },
+    exclude_from_schema=["user_id", "created_by", "created_at"]
+)
+
+router = crud_router(
+    session=get_db,
+    model=Item,
+    create_schema=CreateItemSchema,  # Does NOT include auto fields
+    update_schema=UpdateItemSchema,
+    create_config=create_config,
+)
+```
+
+#### UpdateConfig
+
+Use `UpdateConfig` to inject fields during update operations:
+
+```python
+update_config = UpdateConfig(
+    auto_fields={
+        "updated_by": get_current_user_id,
+        "updated_at": get_current_timestamp,
+    },
+    exclude_from_schema=["updated_by", "updated_at", "user_id"]
+)
+
+router = crud_router(
+    session=get_db,
+    model=Item,
+    create_schema=CreateItemSchema,
+    update_schema=UpdateItemSchema,
+    update_config=update_config,
+)
+```
+
+#### DeleteConfig
+
+Use `DeleteConfig` to inject fields during soft delete operations:
+
+```python
+delete_config = DeleteConfig(
+    auto_fields={
+        "deleted_by": get_current_user_id,
+        "deleted_at": get_current_timestamp,
+    }
+)
+
+router = crud_router(
+    session=get_db,
+    model=Item,
+    create_schema=CreateItemSchema,
+    update_schema=UpdateItemSchema,
+    delete_config=delete_config,
+)
+```
+
+### Schema Exclusion
+
+The `exclude_from_schema` parameter removes fields from the request schema, preventing them from appearing in API documentation and ensuring clients cannot manually set these values:
+
+```python
+create_config = CreateConfig(
+    auto_fields={
+        "user_id": get_current_user_id,
+        "created_at": get_current_timestamp,
+    },
+    exclude_from_schema=["user_id", "created_at"]  # Hidden from API docs
+)
+```
+
+### Authorization and Validation
+
+Auto fields can include authorization checks:
+
+```python
+async def check_can_delete(
+    session_token: str = Cookie(None),
+    item_id: int = Path(...)
+):
+    user = await verify_token(session_token)
+    if not user.can_delete:
+        raise HTTPException(403, "Not authorized to delete")
+    return user.id
+
+delete_config = DeleteConfig(
+    auto_fields={
+        "deleted_by": check_can_delete,  # Includes auth check
+    }
+)
+```
+
+### Multiple Auto Fields
+
+You can inject multiple fields simultaneously:
+
+```python
+create_config = CreateConfig(
+    auto_fields={
+        "user_id": get_current_user_id,
+        "organization_id": get_current_org_id,
+        "created_at": get_current_timestamp,
+        "created_by": get_current_user_id,
+        "version": lambda: "1.0",
+    }
+)
+```
+
+### Using with EndpointCreator
+
+All configuration classes work with both `crud_router` and `EndpointCreator`:
+
+```python
+from fastcrud import EndpointCreator
+
+endpoint_creator = EndpointCreator(
+    session=get_db,
+    model=Item,
+    create_schema=CreateItemSchema,
+    update_schema=UpdateItemSchema,
+    create_config=create_config,
+    update_config=update_config,
+    delete_config=delete_config,
+)
+
+endpoint_creator.add_routes_to_router()
+app.include_router(endpoint_creator.router, prefix="/items")
+```
+
+### Benefits
+
+- **Security**: Prevent clients from setting sensitive fields like user_id or audit timestamps
+- **Automation**: Automatically populate fields without manual intervention
+- **Consistency**: Ensure all records have proper audit trails and ownership
+- **Flexibility**: Use FastAPI's dependency injection for complex value resolution
+- **Clean APIs**: Keep auto-injected fields hidden from API documentation
 
 ## Conclusion
 
