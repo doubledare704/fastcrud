@@ -2321,7 +2321,6 @@ class FastCRUD(
             stmt=stmt, joins_config=join_definitions, use_temporary_prefix=nest_joins
         )
 
-        # Apply counts if counts_config is provided
         if counts_config:
             for count in counts_config:
                 count_model = count.model
@@ -2335,7 +2334,6 @@ class FastCRUD(
 
                 count_subquery = select(func.count()).where(count.join_on)
 
-                # Apply filters if provided
                 if count.filters:
                     count_filters = self._parse_filters(
                         model=count_model, **count.filters
@@ -2343,7 +2341,6 @@ class FastCRUD(
                     if count_filters:
                         count_subquery = count_subquery.filter(*count_filters)
 
-                # Add the count column as a scalar subquery
                 stmt = stmt.add_columns(
                     count_subquery.scalar_subquery().label(count_alias)
                 )
