@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from fastcrud import crud_router, FastCRUD
 from fastcrud import FilterConfig
-from fastcrud.endpoint.helper import _create_dynamic_filters
+from fastcrud.core import create_dynamic_filters
 from pydantic import BaseModel
 
 from ..conftest import Base
@@ -214,7 +214,7 @@ def test_create_dynamic_filters_type_conversion():
         "str_field": str,
     }
 
-    filters_func = _create_dynamic_filters(filter_config, column_types)
+    filters_func = create_dynamic_filters(filter_config, column_types)
 
     test_uuid = "123e4567-e89b-12d3-a456-426614174000"
     result = filters_func(uuid_field=test_uuid, int_field="123", str_field=456)
@@ -242,5 +242,5 @@ def test_create_dynamic_filters_type_conversion():
     result = filters_func(unknown_field="test")
     assert result["unknown_field"] == "test"
 
-    empty_filters_func = _create_dynamic_filters(None, {})
+    empty_filters_func = create_dynamic_filters(None, {})
     assert empty_filters_func() == {}

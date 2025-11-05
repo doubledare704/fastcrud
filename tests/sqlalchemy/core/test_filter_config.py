@@ -1,5 +1,5 @@
 import pytest
-from fastcrud.endpoint.helper import FilterConfig
+from fastcrud.core import FilterConfig
 
 
 def test_filter_config_with_invalid_default_value():

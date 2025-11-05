@@ -1,7 +1,7 @@
 import pytest
 
 from pydantic import ValidationError
-from fastcrud.endpoint.helper import CRUDMethods
+from fastcrud.core import CRUDMethods
 
 
 def test_crud_methods_with_invalid_method():

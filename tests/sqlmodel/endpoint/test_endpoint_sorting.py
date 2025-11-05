@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from fastcrud import EndpointCreator
-from fastcrud.endpoint.helper import FilterConfig
+from fastcrud.core import FilterConfig
 from tests.sqlmodel.conftest import ModelTest, CreateSchemaTest, UpdateSchemaTest
 
 

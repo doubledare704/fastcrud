@@ -217,11 +217,11 @@ async def test_get_primary_key_function_behavior():
     """
     Test to verify the root cause: _get_primary_key only returns first primary key
     """
-    from fastcrud.endpoint.helper import _get_primary_key, _get_primary_keys
+    from fastcrud.core import get_first_primary_key, get_primary_key_columns
 
     # Test with ChildModel (composite PK: child_id, version)
-    all_pks = _get_primary_keys(ChildModel)
-    first_pk = _get_primary_key(ChildModel)
+    all_pks = get_primary_key_columns(ChildModel)
+    first_pk = get_first_primary_key(ChildModel)
 
     # Verify the bug: should return all PKs but only returns first
     pk_names = [pk.name for pk in all_pks]

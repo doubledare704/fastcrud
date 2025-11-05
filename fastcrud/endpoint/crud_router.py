@@ -12,7 +12,7 @@ from fastcrud.types import (
     SelectSchemaType,
 )
 from .endpoint_creator import EndpointCreator
-from .helper import FilterConfig, CreateConfig, UpdateConfig, DeleteConfig
+from ..core import FilterConfig, CreateConfig, UpdateConfig, DeleteConfig
 
 
 def crud_router(
