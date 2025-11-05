@@ -13,12 +13,10 @@ from sqlalchemy import (
     inspect,
     asc,
     desc,
-    or_,
     column,
-    not_,
     Column,
 )
-from sqlalchemy.exc import ArgumentError, MultipleResultsFound, NoResultFound
+from sqlalchemy.exc import MultipleResultsFound, NoResultFound
 from sqlalchemy.sql import Join
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.engine.row import Row
@@ -49,6 +47,11 @@ from ..core import (
     get_primary_key_columns,
     get_first_primary_key,
     handle_null_primary_key_multi_join,
+    # New core utilities
+    FilterProcessor,
+    SQLQueryBuilder,
+    get_model_column,
+    get_sqlalchemy_filter,
 )
 
 FilterCallable = Callable[[Column[Any]], Callable[..., ColumnElement[bool]]]
@@ -458,30 +461,6 @@ class FastCRUD(
         ```
     """
 
-    _SUPPORTED_FILTERS = {
-        "eq": lambda column: column.__eq__,
-        "gt": lambda column: column.__gt__,
-        "lt": lambda column: column.__lt__,
-        "gte": lambda column: column.__ge__,
-        "lte": lambda column: column.__le__,
-        "ne": lambda column: column.__ne__,
-        "is": lambda column: column.is_,
-        "is_not": lambda column: column.is_not,
-        "like": lambda column: column.like,
-        "notlike": lambda column: column.notlike,
-        "ilike": lambda column: column.ilike,
-        "notilike": lambda column: column.notilike,
-        "startswith": lambda column: column.startswith,
-        "endswith": lambda column: column.endswith,
-        "contains": lambda column: column.contains,
-        "match": lambda column: column.match,
-        "between": lambda column: column.between,
-        "in": lambda column: column.in_,
-        "not_in": lambda column: column.not_in,
-        "or": lambda column: column.or_,
-        "not": lambda column: column.not_,
-    }
-
     def __init__(
         self,
         model: type[ModelType],
@@ -498,15 +477,17 @@ class FastCRUD(
         self.multi_response_key = multi_response_key
         self._primary_keys = get_primary_key_columns(self.model)
 
+        # Initialize new core utilities
+        self._filter_processor = FilterProcessor(self.model)
+        self._query_builder = SQLQueryBuilder(self.model)
+
     def _get_sqlalchemy_filter(
         self,
         operator: str,
         value: Any,
     ) -> Optional[FilterCallable]:
-        if operator in {"in", "not_in", "between"}:
-            if not isinstance(value, (tuple, list, set)):
-                raise ValueError(f"<{operator}> filter must be tuple, list or set")
-        return cast(Optional[FilterCallable], self._SUPPORTED_FILTERS.get(operator))
+        """Get SQLAlchemy filter function for operator with validation."""
+        return cast(Optional[FilterCallable], get_sqlalchemy_filter(operator, value))
 
     def _parse_filters(
         self, model: Optional[Union[type[ModelType], AliasedClass]] = None, **kwargs
@@ -521,222 +502,13 @@ class FastCRUD(
         Returns:
             List of SQLAlchemy filter conditions
         """
-        model = model or self.model
-        filters = []
-
-        if "_or" in kwargs:
-            filters.extend(self._handle_multi_field_or_filter(model, kwargs.pop("_or")))
-
-        for key, value in kwargs.items():
-            if "." in key:
-                filters.extend(self._handle_joined_filter(key, value))
-                continue
-
-            if "__" not in key:
-                filters.extend(self._handle_simple_filter(model, key, value))
-                continue
-
-            field_name, operator = key.rsplit("__", 1)
-
-            if "." in field_name:
-                filters.extend(self._handle_joined_filter(key, value))
-                continue
-
-            model_column = self._get_column(model, field_name)
-
-            if operator == "or":
-                filters.extend(self._handle_or_filter(model_column, value))
-            elif operator == "not":
-                filters.extend(self._handle_not_filter(model_column, value))
-            else:
-                filters.extend(
-                    self._handle_standard_filter(model_column, operator, value)
-                )
-
-        return filters
-
-    def _handle_simple_filter(
-        self, model: Union[type[ModelType], AliasedClass], key: str, value: Any
-    ) -> list[ColumnElement]:
-        """Handle simple equality filters (e.g., name='John')."""
-        col = getattr(model, key, None)
-        return [col == value] if col is not None else []
-
-    def _handle_or_filter(self, col: Column, value: dict) -> list[ColumnElement]:
-        """Handle OR conditions (e.g., age__or={'gt': 18, 'lt': 65} or name__or={'like': ['Alice%', 'Bob%']})."""
-        if not isinstance(value, dict):  # pragma: no cover
-            raise ValueError("OR filter value must be a dictionary")
-
-        or_conditions = []
-        for or_op, or_value in value.items():
-            if isinstance(or_value, list):
-                for single_value in or_value:
-                    sqlalchemy_filter = self._get_sqlalchemy_filter(or_op, single_value)
-                    if sqlalchemy_filter:
-                        condition = (
-                            sqlalchemy_filter(col)(*single_value)
-                            if or_op == "between"
-                            else sqlalchemy_filter(col)(single_value)
-                        )
-                        or_conditions.append(condition)
-            else:
-                sqlalchemy_filter = self._get_sqlalchemy_filter(or_op, or_value)
-                if sqlalchemy_filter:
-                    condition = (
-                        sqlalchemy_filter(col)(*or_value)
-                        if or_op == "between"
-                        else sqlalchemy_filter(col)(or_value)
-                    )
-                    or_conditions.append(condition)
-
-        return [or_(*or_conditions)] if or_conditions else []
-
-    def _handle_not_filter(self, col: Column, value: dict) -> list[ColumnElement[bool]]:
-        """Handle NOT conditions (e.g., age__not={'eq': 20, 'between': (30, 40)} or name__not={'like': ['Alice%', 'Bob%']})."""
-        if not isinstance(value, dict):  # pragma: no cover
-            raise ValueError("NOT filter value must be a dictionary")
-
-        not_conditions = []
-        for not_op, not_value in value.items():
-            if isinstance(not_value, list):
-                for single_value in not_value:
-                    sqlalchemy_filter = self._get_sqlalchemy_filter(
-                        not_op, single_value
-                    )
-                    if sqlalchemy_filter is None:  # pragma: no cover
-                        continue
-
-                    condition = (
-                        sqlalchemy_filter(col)(*single_value)
-                        if not_op == "between"
-                        else sqlalchemy_filter(col)(single_value)
-                    )
-                    not_conditions.append(condition)
-            else:
-                sqlalchemy_filter = self._get_sqlalchemy_filter(not_op, not_value)
-                if sqlalchemy_filter is None:  # pragma: no cover
-                    continue
-
-                condition = (
-                    sqlalchemy_filter(col)(*not_value)
-                    if not_op == "between"
-                    else sqlalchemy_filter(col)(not_value)
-                )
-                not_conditions.append(condition)
-
-        return (
-            [and_(*(not_(cond) for cond in not_conditions))] if not_conditions else []
-        )
-
-    def _handle_standard_filter(
-        self, col: Column[Any], operator: str, value: Any
-    ) -> list[ColumnElement[bool]]:
-        """Handle standard comparison operators (e.g., age__gt=18)."""
-        sqlalchemy_filter = self._get_sqlalchemy_filter(operator, value)
-        if sqlalchemy_filter is None:  # pragma: no cover
-            return []
-
-        condition = (
-            sqlalchemy_filter(col)(*value)
-            if operator == "between"
-            else sqlalchemy_filter(col)(value)
-        )
-        return [condition]
-
-    def _handle_multi_field_or_filter(
-        self, model: Union[type[ModelType], AliasedClass], value: dict
-    ) -> list[ColumnElement]:
-        """Handle OR conditions across multiple fields.
-
-        This method allows for OR conditions between different fields, such as:
-        _or={'name__ilike': '%keyword%', 'email__ilike': '%keyword%'}
-
-        Args:
-            model: The model to apply filters to
-            value: Dictionary of field conditions in the format {'field_name__operator': value}
-
-        Returns:
-            List containing a single SQLAlchemy OR condition combining all specified filters
-        """
-        if not isinstance(value, dict):  # pragma: no cover
-            raise ValueError("Multi-field OR filter value must be a dictionary")
-
-        or_conditions = []
-
-        for field_condition, condition_value in value.items():
-            if "__" not in field_condition:
-                col = getattr(model, field_condition, None)
-                if col is not None:
-                    or_conditions.append(col == condition_value)
-                continue
-
-            field_name, operator = field_condition.rsplit("__", 1)
-            try:
-                model_column = self._get_column(model, field_name)
-
-                sqlalchemy_filter = self._get_sqlalchemy_filter(
-                    operator, condition_value
-                )
-                if sqlalchemy_filter:
-                    condition = (
-                        sqlalchemy_filter(model_column)(*condition_value)
-                        if operator == "between"
-                        else sqlalchemy_filter(model_column)(condition_value)
-                    )
-                    or_conditions.append(condition)
-            except ValueError:
-                continue
-
-        return [or_(*or_conditions)] if or_conditions else []
-
-    def _handle_joined_filter(self, filter_key: str, value: Any) -> list[ColumnElement]:
-        """Handle joined model filters (e.g., 'user.company.name' or 'user.company.name__eq')."""
-        if "__" in filter_key:
-            field_path, operator = filter_key.rsplit("__", 1)
-        else:
-            field_path, operator = filter_key, None
-
-        path_parts = field_path.split(".")
-        if len(path_parts) < 2:
-            raise ValueError(f"Invalid joined filter format: {filter_key}")
-
-        relationship_path = path_parts[:-1]
-        final_field = path_parts[-1]
-
-        current_model = self.model
-        for relationship_name in relationship_path:
-            relationship = getattr(current_model, relationship_name, None)
-            if relationship is None:
-                raise ValueError(
-                    f"Relationship '{relationship_name}' not found in model '{current_model.__name__}'"
-                )
-
-            if hasattr(relationship.property, "mapper"):
-                current_model = relationship.property.mapper.class_
-            else:
-                raise ValueError(
-                    f"Invalid relationship '{relationship_name}' in model '{current_model.__name__}'"
-                )
-
-        target_column = getattr(current_model, final_field, None)
-        if target_column is None:
-            raise ValueError(
-                f"Column '{final_field}' not found in model '{current_model.__name__}'"
-            )
-
-        if operator is None:
-            return [target_column == value]
-        else:
-            return self._handle_standard_filter(target_column, operator, value)
+        return self._filter_processor.parse_filters(model=model, **kwargs)
 
     def _get_column(
         self, model: Union[type[ModelType], AliasedClass], field_name: str
     ) -> Column[Any]:
         """Get column from model, raising ValueError if not found."""
-        model_column = getattr(model, field_name, None)
-        if model_column is None:
-            raise ValueError(f"Invalid filter column: {field_name}")
-        return cast(Column[Any], model_column)
+        return cast(Column[Any], get_model_column(model, field_name))
 
     def _apply_sorting(
         self,
@@ -744,74 +516,10 @@ class FastCRUD(
         sort_columns: Union[str, list[str]],
         sort_orders: Optional[Union[str, list[str]]] = None,
     ) -> Select:
-        """
-        Apply sorting to a SQLAlchemy query based on specified column names and sort orders.
-
-        Args:
-            stmt: The SQLAlchemy `Select` statement to which sorting will be applied.
-            sort_columns: A single column name or a list of column names on which to apply sorting.
-            sort_orders: A single sort order (`"asc"` or `"desc"`) or a list of sort orders corresponding
-                to the columns in `sort_columns`. If not provided, defaults to `"asc"` for each column.
-
-        Raises:
-            ValueError: Raised if sort orders are provided without corresponding sort columns,
-                or if an invalid sort order is provided (not `"asc"` or `"desc"`).
-            ArgumentError: Raised if an invalid column name is provided that does not exist in the model.
-
-        Returns:
-            The modified `Select` statement with sorting applied.
-
-        Examples:
-            Applying ascending sort on a single column:
-            >>> stmt = _apply_sorting(stmt, 'name')
-
-            Applying descending sort on a single column:
-            >>> stmt = _apply_sorting(stmt, 'age', 'desc')
-
-            Applying mixed sort orders on multiple columns:
-            >>> stmt = _apply_sorting(stmt, ['name', 'age'], ['asc', 'desc'])
-
-            Applying ascending sort on multiple columns:
-            >>> stmt = _apply_sorting(stmt, ['name', 'age'])
-
-        Note:
-            This method modifies the passed `Select` statement in-place by applying the `order_by` clause
-            based on the provided column names and sort orders.
-        """
-        if sort_orders and not sort_columns:
-            raise ValueError("Sort orders provided without corresponding sort columns.")
-
-        if sort_columns:
-            if not isinstance(sort_columns, list):
-                sort_columns = [sort_columns]
-
-            if sort_orders:
-                if not isinstance(sort_orders, list):
-                    sort_orders = [sort_orders] * len(sort_columns)
-                if len(sort_columns) != len(sort_orders):
-                    raise ValueError(
-                        "The length of sort_columns and sort_orders must match."
-                    )
-
-                for idx, order in enumerate(sort_orders):
-                    if order not in ["asc", "desc"]:
-                        raise ValueError(
-                            f"Invalid sort order: {order}. Only 'asc' or 'desc' are allowed."
-                        )
-
-            validated_sort_orders = (
-                ["asc"] * len(sort_columns) if not sort_orders else sort_orders
-            )
-
-            for idx, column_name in enumerate(sort_columns):
-                column = getattr(self.model, column_name, None)
-                if not column:
-                    raise ArgumentError(f"Invalid column name: {column_name}")
-
-                order = validated_sort_orders[idx]
-                stmt = stmt.order_by(asc(column) if order == "asc" else desc(column))
-
-        return stmt
+        """Apply sorting to a SQLAlchemy query using SortProcessor."""
+        return self._query_builder.sort_processor.apply_sorting_to_statement(
+            stmt, sort_columns, sort_orders
+        )
 
     def _prepare_and_apply_joins(
         self,
@@ -819,40 +527,10 @@ class FastCRUD(
         joins_config: list[JoinConfig],
         use_temporary_prefix: bool = False,
     ):
-        """
-        Applies joins to the given SQL statement based on a list of `JoinConfig` objects.
-
-        Args:
-            stmt: The initial SQL statement.
-            joins_config: Configurations for all joins.
-            use_temporary_prefix: Whether to use or not an additional prefix for joins. Default `False`.
-
-        Returns:
-            The modified SQL statement with joins applied.
-        """
-        for join in joins_config:
-            model = join.alias or join.model
-            join_select = extract_matching_columns_from_schema(
-                model,
-                join.schema_to_select,
-                join.join_prefix,
-                join.alias,
-                use_temporary_prefix,
-            )
-            joined_model_filters = self._parse_filters(
-                model=model, **(join.filters or {})
-            )
-
-            if join.join_type == "left":
-                stmt = stmt.outerjoin(model, join.join_on).add_columns(*join_select)
-            elif join.join_type == "inner":
-                stmt = stmt.join(model, join.join_on).add_columns(*join_select)
-            else:  # pragma: no cover
-                raise ValueError(f"Unsupported join type: {join.join_type}.")
-            if joined_model_filters:
-                stmt = stmt.filter(*joined_model_filters)
-
-        return stmt
+        """Apply joins to SQL statement using JoinBuilder."""
+        return self._query_builder.join_builder.prepare_joins(
+            stmt, joins_config, use_temporary_prefix
+        )
 
     async def create(
         self,
@@ -1355,7 +1033,10 @@ class FastCRUD(
             count = await project_crud.count(db, joins_config=joins_config)
             ```
         """
-        primary_filters = self._parse_filters(**kwargs)
+        # Extract non-filter parameters from kwargs for count method
+        non_filter_params = {"participant_id"}  # Add known non-column parameters
+        filter_kwargs = {k: v for k, v in kwargs.items() if k not in non_filter_params}
+        primary_filters = self._parse_filters(**filter_kwargs)
 
         if joins_config is not None:
             primary_keys = list(get_primary_key_names(self.model))
@@ -2381,7 +2062,10 @@ class FastCRUD(
                     count_subquery.scalar_subquery().label(count_alias)
                 )
 
-        primary_filters = self._parse_filters(**kwargs)
+        # Extract non-filter parameters from kwargs
+        non_filter_params = {"nested_schema_to_select"}
+        filter_kwargs = {k: v for k, v in kwargs.items() if k not in non_filter_params}
+        primary_filters = self._parse_filters(**filter_kwargs)
         if primary_filters:
             stmt = stmt.filter(*primary_filters)
 
@@ -2457,7 +2141,7 @@ class FastCRUD(
                 db=db,
                 joins_config=join_definitions,
                 distinct_on_primary=distinct_on_primary,
-                **kwargs,
+                **filter_kwargs,
             )
             response["total_count"] = total_count
 
