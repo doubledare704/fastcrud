@@ -1,4 +1,4 @@
-from typing import Any, Generic, Union, Optional, Callable, cast
+from typing import Any, Generic, Union, Optional, Callable, cast, Sequence
 from datetime import datetime, timezone
 
 from pydantic import ValidationError
@@ -38,17 +38,18 @@ from fastcrud.types import (
     GetMultiResponseDict,
 )
 
-from .helper import (
-    _extract_matching_columns_from_schema,
-    _auto_detect_join_condition,
-    _nest_join_data,
-    _nest_multi_join_data,
-    _handle_null_primary_key_multi_join,
+from ..core import (
+    extract_matching_columns_from_schema,
+    auto_detect_join_condition,
+    nest_join_data,
+    JoinProcessor,
     JoinConfig,
     CountConfig,
+    get_primary_key_names,
+    get_primary_key_columns,
+    get_first_primary_key,
+    handle_null_primary_key_multi_join,
 )
-
-from ..endpoint.helper import _get_primary_keys
 
 FilterCallable = Callable[[Column[Any]], Callable[..., ColumnElement[bool]]]
 
@@ -495,7 +496,7 @@ class FastCRUD(
         self.deleted_at_column = deleted_at_column
         self.updated_at_column = updated_at_column
         self.multi_response_key = multi_response_key
-        self._primary_keys = _get_primary_keys(self.model)
+        self._primary_keys = get_primary_key_columns(self.model)
 
     def _get_sqlalchemy_filter(
         self,
@@ -831,7 +832,7 @@ class FastCRUD(
         """
         for join in joins_config:
             model = join.alias or join.model
-            join_select = _extract_matching_columns_from_schema(
+            join_select = extract_matching_columns_from_schema(
                 model,
                 join.schema_to_select,
                 join.join_prefix,
@@ -959,7 +960,7 @@ class FastCRUD(
             This method does not execute the generated SQL statement.
             Use `db.execute(stmt)` to run the query and fetch results.
         """
-        to_select = _extract_matching_columns_from_schema(
+        to_select = extract_matching_columns_from_schema(
             model=self.model, schema=schema_to_select
         )
         filters = self._parse_filters(**kwargs)
@@ -1357,7 +1358,7 @@ class FastCRUD(
         primary_filters = self._parse_filters(**kwargs)
 
         if joins_config is not None:
-            primary_keys = [p.name for p in _get_primary_keys(self.model)]
+            primary_keys = list(get_primary_key_names(self.model))
             if not any(primary_keys):  # pragma: no cover
                 raise ValueError(
                     f"The model '{self.model.__name__}' does not have a primary key defined, which is required for counting with joins."
@@ -1887,7 +1888,7 @@ class FastCRUD(
         elif not joins_config and not join_model:
             raise ValueError("You need one of join_model or joins_config.")
 
-        primary_select = _extract_matching_columns_from_schema(
+        primary_select = extract_matching_columns_from_schema(
             model=self.model,
             schema=schema_to_select,
         )
@@ -1934,9 +1935,10 @@ class FastCRUD(
             if nest_joins:
                 nested_data: dict = {}
                 for data in data_list:
-                    nested_data = _nest_join_data(
+                    nested_data = nest_join_data(
                         data,
                         join_definitions,
+                        get_first_primary_key,
                         nested_data=nested_data,
                     )
                 return nested_data
@@ -2292,7 +2294,7 @@ class FastCRUD(
         if relationship_type is None:
             relationship_type = "one-to-one"
 
-        primary_select = _extract_matching_columns_from_schema(
+        primary_select = extract_matching_columns_from_schema(
             model=self.model, schema=schema_to_select
         )
         stmt: Select = select(*primary_select)
@@ -2305,7 +2307,7 @@ class FastCRUD(
                         model=join_model,
                         join_on=join_on
                         if join_on is not None
-                        else _auto_detect_join_condition(self.model, join_model),
+                        else auto_detect_join_condition(self.model, join_model),
                         join_prefix=join_prefix,
                         schema_to_select=join_schema_to_select,
                         join_type=join_type,
@@ -2326,7 +2328,7 @@ class FastCRUD(
                 count_model = count.model
                 count_alias = count.alias or f"{count_model.__tablename__}_count"
 
-                count_primary_keys = _get_primary_keys(count_model)
+                count_primary_keys = get_primary_key_columns(count_model)
                 if not count_primary_keys:
                     raise ValueError(
                         f"The model '{count_model.__name__}' does not have a primary key defined, which is required for counting."
@@ -2364,9 +2366,10 @@ class FastCRUD(
             row_dict = dict(row)
 
             if nest_joins:
-                row_dict = _nest_join_data(
+                row_dict = nest_join_data(
                     data=row_dict,
                     join_definitions=join_definitions,
+                    get_primary_key_func=get_first_primary_key,
                 )
 
             if return_as_model:
@@ -2387,24 +2390,27 @@ class FastCRUD(
         if nest_joins and any(
             join.relationship_type == "one-to-many" for join in join_definitions
         ):
-            nested_data = _nest_multi_join_data(
-                base_primary_key=self._primary_keys[0].name,  # type: ignore[misc]
-                data=data,
-                joins_config=join_definitions,
-                return_as_model=return_as_model,
-                schema_to_select=schema_to_select if return_as_model else None,
-                nested_schema_to_select={
-                    (
-                        join.join_prefix.rstrip("_")
-                        if join.join_prefix
-                        else join.model.__tablename__
-                    ): join.schema_to_select
-                    for join in join_definitions
-                    if join.schema_to_select
-                },
+            processor = JoinProcessor(self.model)
+            nested_data = cast(
+                Sequence[Union[dict, Any]],
+                processor.process_multi_join(
+                    data=data,
+                    joins_config=join_definitions,
+                    return_as_model=return_as_model,
+                    schema_to_select=schema_to_select if return_as_model else None,
+                    nested_schema_to_select={
+                        (
+                            join.join_prefix.rstrip("_")
+                            if join.join_prefix
+                            else join.model.__tablename__
+                        ): join.schema_to_select
+                        for join in join_definitions
+                        if join.schema_to_select
+                    },
+                ),
             )
         else:
-            nested_data = _handle_null_primary_key_multi_join(data, join_definitions)
+            nested_data = handle_null_primary_key_multi_join(data, join_definitions)
 
         response: dict[str, Any] = {"data": nested_data}
 

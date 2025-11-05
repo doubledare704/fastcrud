@@ -1,4 +1,4 @@
-from typing import Type, Optional, Callable, Sequence, Union, Any, cast
+from typing import Type, Optional, Callable, Sequence, Union, Any, cast, Awaitable
 from enum import Enum
 
 from fastapi import Depends, Body, APIRouter
@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import NoResultFound
 
 from fastcrud.crud.fast_crud import FastCRUD
-from fastcrud.paginated import (
+from ..core import (
     ListResponse,
     PaginatedListResponse,
     PaginatedRequestQuery,
@@ -24,26 +24,29 @@ from ..exceptions.http_exceptions import (
     NotFoundException,
     BadRequestException,
 )
-from ..paginated.helper import compute_offset
-from ..paginated.response import paginated_response
-from .helper import (
+from ..core import (
+    compute_offset,
+    paginated_response,
+    create_list_response,
+    create_paginated_response,
+)
+from ..core import (
     CRUDMethods,
     FilterConfig,
     CreateConfig,
     UpdateConfig,
     DeleteConfig,
-    _extract_unique_columns,
-    _get_primary_keys,
-    _get_python_type,
-    _inject_dependencies,
-    _apply_model_pk,
-    _create_dynamic_filters,
-    _create_auto_field_injector,
-    _create_modified_schema,
-    _get_column_types,
-    _validate_joined_filter_path,
+    inject_dependencies,
+    apply_model_pk,
+    create_dynamic_filters,
+    create_auto_field_injector,
+    create_modified_schema,
+    get_primary_key_columns,
+    get_unique_columns,
+    get_python_type,
+    get_column_types,
+    validate_joined_filter_path,
 )
-from ..paginated.schemas import create_list_response, create_paginated_response
 
 
 class EndpointCreator:
@@ -271,9 +274,11 @@ class EndpointCreator:
         update_config: Optional[UpdateConfig] = None,
         delete_config: Optional[DeleteConfig] = None,
     ) -> None:
-        self._primary_keys = _get_primary_keys(model)
+        self._primary_keys = get_primary_key_columns(model)
         self._primary_keys_types = {
-            pk.name: _get_python_type(pk) for pk in self._primary_keys
+            pk.name: pk_type
+            for pk in self._primary_keys
+            if (pk_type := get_python_type(pk)) is not None
         }
         self.primary_key_names = [pk.name for pk in self._primary_keys]
         self.session = session
@@ -308,11 +313,13 @@ class EndpointCreator:
             if isinstance(filter_config, dict):
                 filter_config = FilterConfig(**filter_config)
             self._validate_filter_config(filter_config)
-        self.filter_config = filter_config
+            self.filter_config: Optional[FilterConfig] = filter_config
+        else:
+            self.filter_config = None
         self.create_config = create_config
         self.update_config = update_config
         self.delete_config = delete_config
-        self.column_types = _get_column_types(model)
+        self.column_types = dict(get_column_types(model))
 
         if select_schema is not None:
             response_key = getattr(self.crud, "multi_response_key", "data")
@@ -342,7 +349,7 @@ class EndpointCreator:
                             f"Invalid filter op '{operator}': following filter ops are allowed: {supported_filters.keys()}"
                         )
 
-                    if not _validate_joined_filter_path(
+                    if not validate_joined_filter_path(
                         self.model, relationship_path, final_field
                     ):
                         raise ValueError(
@@ -365,15 +372,15 @@ class EndpointCreator:
                         f"Invalid filter column '{key}': not found in model '{self.model.__name__}' columns"
                     )
 
-    def _create_item(self):
+    def _create_item(self) -> Callable[..., Awaitable[Any]]:
         """Creates an endpoint for creating items in the database."""
-        auto_field_injector = _create_auto_field_injector(self.create_config)
+        auto_field_injector = create_auto_field_injector(self.create_config)
 
         request_schema: type[BaseModel] = self.create_schema
         if self.create_config and self.create_config.exclude_from_schema:
-            request_schema = _create_modified_schema(
+            request_schema = create_modified_schema(
                 self.create_schema,
-                self.create_config.exclude_from_schema,
+                tuple(self.create_config.exclude_from_schema),
                 f"{self.create_schema.__name__}Modified",
             )
 
@@ -382,7 +389,7 @@ class EndpointCreator:
             item: BaseModel = Body(...),
             auto_fields: dict = Depends(auto_field_injector),
         ):
-            unique_columns = _extract_unique_columns(self.model)
+            unique_columns = get_unique_columns(self.model)
 
             for column in unique_columns:
                 col_name = column.name
@@ -409,10 +416,10 @@ class EndpointCreator:
 
         return endpoint
 
-    def _read_item(self):
+    def _read_item(self) -> Callable[..., Awaitable[Any]]:
         """Creates an endpoint for reading a single item from the database."""
 
-        @_apply_model_pk(**self._primary_keys_types)
+        @apply_model_pk(**self._primary_keys_types)
         async def endpoint(db: AsyncSession = Depends(self.session), **pkeys):
             if self.select_schema is not None:
                 item = await self.crud.get(
@@ -427,9 +434,9 @@ class EndpointCreator:
                 raise NotFoundException(detail="Item not found")
             return item  # pragma: no cover
 
-        return endpoint
+        return cast(Callable[..., Awaitable[Any]], endpoint)
 
-    def _read_items(self):
+    def _read_items(self) -> Callable[..., Awaitable[Union[dict[str, Any], Any]]]:
         """Creates an endpoint for reading multiple items from the database.
 
         The created endpoint supports:
@@ -445,7 +452,7 @@ class EndpointCreator:
         The query parameters are encapsulated in PaginatedRequestQuery schema,
         which can be reused in custom endpoints.
         """
-        dynamic_filters = _create_dynamic_filters(self.filter_config, self.column_types)
+        dynamic_filters = create_dynamic_filters(self.filter_config, self.column_types)
 
         async def endpoint(
             db: AsyncSession = Depends(self.session),
@@ -523,15 +530,15 @@ class EndpointCreator:
 
         return endpoint
 
-    def _update_item(self):
+    def _update_item(self) -> Callable[..., Awaitable[Any]]:
         """Creates an endpoint for updating an existing item in the database."""
-        auto_field_injector = _create_auto_field_injector(self.update_config)
+        auto_field_injector = create_auto_field_injector(self.update_config)
 
         request_schema: type[BaseModel] = self.update_schema
         if self.update_config and self.update_config.exclude_from_schema:
-            request_schema = _create_modified_schema(
+            request_schema = create_modified_schema(
                 self.update_schema,
-                self.update_config.exclude_from_schema,
+                tuple(self.update_config.exclude_from_schema),
                 f"{self.update_schema.__name__}Modified",
             )
 
@@ -553,13 +560,13 @@ class EndpointCreator:
 
         endpoint.__annotations__["item"] = request_schema
 
-        endpoint = _apply_model_pk(**self._primary_keys_types)(endpoint)
+        endpoint = apply_model_pk(**self._primary_keys_types)(endpoint)
 
         return endpoint
 
-    def _delete_item(self):
+    def _delete_item(self) -> Callable[..., Awaitable[Any]]:
         """Creates an endpoint for deleting (soft delete) an item from the database."""
-        auto_field_injector = _create_auto_field_injector(self.delete_config)
+        auto_field_injector = create_auto_field_injector(self.delete_config)
 
         async def endpoint(
             db: AsyncSession = Depends(self.session),
@@ -578,11 +585,11 @@ class EndpointCreator:
             except NoResultFound:
                 raise NotFoundException(detail="Item not found")
 
-        endpoint = _apply_model_pk(**self._primary_keys_types)(endpoint)
+        endpoint = apply_model_pk(**self._primary_keys_types)(endpoint)
 
         return endpoint
 
-    def _db_delete(self):
+    def _db_delete(self) -> Callable[..., Awaitable[Any]]:
         """
         Creates an endpoint for hard deleting an item from the database.
 
@@ -591,16 +598,16 @@ class EndpointCreator:
         async session to permanently delete the item from the database.
         """
 
-        @_apply_model_pk(**self._primary_keys_types)
+        @apply_model_pk(**self._primary_keys_types)
         async def endpoint(db: AsyncSession = Depends(self.session), **pkeys):
             await self.crud.db_delete(db, **pkeys)
             return {
                 "message": "Item permanently deleted from the database"
             }  # pragma: no cover
 
-        return endpoint
+        return cast(Callable[..., Awaitable[Any]], endpoint)
 
-    def _get_endpoint_path(self, operation: str):
+    def _get_endpoint_path(self, operation: str) -> str:
         endpoint_name = self.endpoint_names.get(
             operation, self.default_endpoint_names.get(operation, operation)
         )
@@ -725,7 +732,7 @@ class EndpointCreator:
                 methods=["POST"],
                 include_in_schema=self.include_in_schema,
                 tags=self.tags,
-                dependencies=_inject_dependencies(create_deps),
+                dependencies=inject_dependencies(create_deps),
                 description=f"Create a new {self.model.__name__} row in the database.",
             )
 
@@ -736,7 +743,7 @@ class EndpointCreator:
                 methods=["GET"],
                 include_in_schema=self.include_in_schema,
                 tags=self.tags,
-                dependencies=_inject_dependencies(read_deps),
+                dependencies=inject_dependencies(read_deps),
                 response_model=self.select_schema if self.select_schema else None,
                 description=f"Read a single {self.model.__name__} row from the database by its primary keys: {self.primary_key_names}.",
             )
@@ -758,7 +765,7 @@ class EndpointCreator:
                 methods=["GET"],
                 include_in_schema=self.include_in_schema,
                 tags=self.tags,
-                dependencies=_inject_dependencies(read_multi_deps),
+                dependencies=inject_dependencies(read_multi_deps),
                 response_model=response_model,
                 description=(
                     f"Read multiple {self.model.__name__} rows from the database.\n\n"
@@ -782,7 +789,7 @@ class EndpointCreator:
                 methods=["PATCH"],
                 include_in_schema=self.include_in_schema,
                 tags=self.tags,
-                dependencies=_inject_dependencies(update_deps),
+                dependencies=inject_dependencies(update_deps),
                 description=f"Update an existing {self.model.__name__} row in the database by its primary keys: {self.primary_key_names}.",
             )
 
@@ -794,7 +801,7 @@ class EndpointCreator:
                 methods=["DELETE"],
                 include_in_schema=self.include_in_schema,
                 tags=self.tags,
-                dependencies=_inject_dependencies(delete_deps),
+                dependencies=inject_dependencies(delete_deps),
                 description=f"{delete_description} {self.model.__name__} row from the database by its primary keys: {self.primary_key_names}.",
             )
 
@@ -809,7 +816,7 @@ class EndpointCreator:
                 methods=["DELETE"],
                 include_in_schema=self.include_in_schema,
                 tags=self.tags,
-                dependencies=_inject_dependencies(db_delete_deps),
+                dependencies=inject_dependencies(db_delete_deps),
                 description=f"Permanently delete a {self.model.__name__} row from the database by its primary keys: {self.primary_key_names}.",
             )
 
@@ -861,7 +868,7 @@ class EndpointCreator:
             path=full_path,
             endpoint=endpoint,
             methods=methods,
-            dependencies=_inject_dependencies(dependencies) or [],
+            dependencies=inject_dependencies(dependencies) or [],
             include_in_schema=include_in_schema,
             tags=tags or self.tags,
             summary=summary,

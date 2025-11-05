@@ -30,7 +30,7 @@ class PaginatedRequestQuery(BaseModel):
         ```python
         from typing import Annotated
         from fastapi import Depends
-        from fastcrud.paginated import PaginatedRequestQuery
+        from fastcrud import PaginatedRequestQuery
 
         async def custom_endpoint(
             query: Annotated[PaginatedRequestQuery, Depends()]
@@ -75,7 +75,7 @@ class CursorPaginatedRequestQuery(BaseModel):
         ```python
         from typing import Annotated
         from fastapi import Depends
-        from fastcrud.paginated import CursorPaginatedRequestQuery
+        from fastcrud import CursorPaginatedRequestQuery
 
         async def custom_cursor_endpoint(
             query: Annotated[CursorPaginatedRequestQuery, Depends()]
