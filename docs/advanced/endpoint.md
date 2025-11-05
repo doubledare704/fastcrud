@@ -586,6 +586,9 @@ app.include_router(my_router)
 
 FastCRUD provides a `PaginatedRequestQuery` Pydantic model that encapsulates all query parameters used for pagination and sorting. This model can be reused in custom endpoints using FastAPI's `Depends()`, making it easy to maintain consistent pagination behavior across your API.
 
+!!! warning "Import Path Change"
+    Until version 0.18.x, pagination utilities were imported from `fastcrud.paginated`. Starting from version 0.19.0, this import path is deprecated and will be completely removed in version 0.20.0. Please update your imports to use `from fastcrud import PaginatedRequestQuery` instead.
+
 ### Using `PaginatedRequestQuery` in Custom Endpoints
 
 The `PaginatedRequestQuery` model includes all standard pagination parameters:
@@ -599,7 +602,7 @@ Here's how to use it in a custom endpoint:
 ```python
 from typing import Annotated
 from fastapi import Depends, APIRouter
-from fastcrud.paginated import PaginatedRequestQuery
+from fastcrud import PaginatedRequestQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
@@ -673,7 +676,7 @@ You can also subclass `PaginatedRequestQuery` to add custom query parameters whi
 ```python
 from typing import Optional
 from pydantic import Field
-from fastcrud.paginated import PaginatedRequestQuery
+from fastcrud import PaginatedRequestQuery
 
 class CustomPaginatedQuery(PaginatedRequestQuery):
     """Extended query with custom filter."""
@@ -710,6 +713,9 @@ Using `PaginatedRequestQuery` provides several advantages:
 
 FastCRUD also provides a `CursorPaginatedRequestQuery` Pydantic model for cursor-based pagination. This model is ideal for large datasets and infinite scrolling features, as it provides consistent results even when data is being modified.
 
+!!! warning "Import Path Change"
+    Until version 0.18.x, pagination utilities were imported from `fastcrud.paginated`. Starting from version 0.19.0, this import path is deprecated and will be completely removed in version 0.20.0. Please update your imports to use `from fastcrud import CursorPaginatedRequestQuery` instead.
+
 ### Using `CursorPaginatedRequestQuery` in Custom Endpoints
 
 The `CursorPaginatedRequestQuery` model includes cursor-based pagination parameters:
@@ -724,7 +730,7 @@ Here's how to use it in a custom endpoint:
 ```python
 from typing import Annotated
 from fastapi import Depends, APIRouter
-from fastcrud.paginated import CursorPaginatedRequestQuery
+from fastcrud import CursorPaginatedRequestQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
@@ -788,7 +794,7 @@ You can also subclass `CursorPaginatedRequestQuery` to add custom query paramete
 ```python
 from typing import Optional
 from pydantic import Field
-from fastcrud.paginated import CursorPaginatedRequestQuery
+from fastcrud import CursorPaginatedRequestQuery
 
 class CustomCursorQuery(CursorPaginatedRequestQuery):
     """Extended cursor query with custom filters."""

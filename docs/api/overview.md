@@ -18,7 +18,10 @@ Our application's API is comprised of several key components, each serving a spe
 
     - [CRUD Router Function Reference](crud_router.md)
 
-4. **paginated Module**: A a utility module for offset pagination related functions.
+4. **paginated Module**: A utility module for offset pagination related functions. 
+   
+   !!! note "Module Restructured"
+       As of version 0.18.0, pagination utilities have been moved to the core module for better organization. The `fastcrud.paginated` module is now deprecated but remains available for backward compatibility.
 
     - [Pagination Module Reference](paginated.md)
 
