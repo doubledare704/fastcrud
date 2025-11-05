@@ -1,6 +1,6 @@
 from fastapi import Depends
 
-from fastcrud.endpoint.helper import FilterConfig
+from fastcrud.core import FilterConfig
 
 
 class UserInfo:

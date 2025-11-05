@@ -1,6 +1,6 @@
 import pytest
 from pydantic import BaseModel
-from fastcrud.paginated.schemas import (
+from fastcrud.core import (
     create_list_response,
     create_paginated_response,
     PaginatedRequestQuery,
