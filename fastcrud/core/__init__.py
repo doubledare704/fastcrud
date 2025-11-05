@@ -14,6 +14,8 @@ to avoid repeated expensive operations while maintaining clean, functional APIs.
 
 from .introspection import ModelInspector, get_model_inspector
 from .join_processing import JoinProcessor, handle_null_primary_key_multi_join
+from .filtering import FilterProcessor, get_sqlalchemy_filter
+from .query import SQLQueryBuilder, SortProcessor, JoinBuilder
 
 from .introspection import (
     get_primary_key_names,
@@ -24,6 +26,7 @@ from .introspection import (
     get_column_types,
     create_composite_key,
     validate_model_has_table,
+    get_model_column,
 )
 
 # Data processing
@@ -77,6 +80,13 @@ __all__ = [
     "get_model_inspector",
     "JoinProcessor",
     "handle_null_primary_key_multi_join",
+    # Filtering engine
+    "FilterProcessor",
+    "get_sqlalchemy_filter",
+    # Query building engine
+    "SQLQueryBuilder",
+    "SortProcessor",
+    "JoinBuilder",
     # Introspection functions
     "get_primary_key_names",
     "get_primary_key_columns",
@@ -86,6 +96,7 @@ __all__ = [
     "get_column_types",
     "create_composite_key",
     "validate_model_has_table",
+    "get_model_column",
     # Data processing functions
     "nest_join_data",
     "sort_nested_list",

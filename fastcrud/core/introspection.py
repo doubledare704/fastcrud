@@ -6,13 +6,14 @@ repeated expensive operations. It includes both class-based and functional appro
 for different use cases.
 """
 
-from typing import Optional, Sequence, Union
+from typing import Optional, Sequence, Union, Any, cast
 from uuid import UUID
 
 from sqlalchemy import Column, inspect as sa_inspect
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.types import TypeEngine
 from sqlalchemy.sql.elements import KeyedColumnElement
+from sqlalchemy.orm.util import AliasedClass
 
 from ..types import ModelType
 
@@ -341,3 +342,38 @@ def create_composite_key(item: dict, pk_names: list[str]) -> tuple:
         (1, 2)
     """
     return tuple(item.get(pk_name) for pk_name in pk_names)
+
+
+def get_model_column(
+    model: Union[ModelType, AliasedClass], field_name: str
+) -> Column[Any]:
+    """
+    Get column from model, raising ValueError if not found.
+
+    This utility function retrieves a column attribute from a SQLAlchemy model
+    or aliased model, providing consistent error handling across the codebase.
+    It's designed to replace the repetitive getattr/error checking pattern
+    used throughout FastCRUD.
+
+    Args:
+        model: SQLAlchemy model or alias from which to get the column
+        field_name: Name of the field/column to retrieve
+
+    Returns:
+        SQLAlchemy Column object for the specified field
+
+    Raises:
+        ValueError: If field doesn't exist on the model
+
+    Example:
+        >>> user_name_col = get_model_column(User, "name")
+        >>> user_id_col = get_model_column(aliased_user, "id")
+
+        >>> # This will raise ValueError
+        >>> invalid_col = get_model_column(User, "nonexistent_field")
+    """
+    model_column = getattr(model, field_name, None)
+    if model_column is None:
+        model_name = getattr(model, "__name__", str(model))
+        raise ValueError(f"Invalid column '{field_name}' for model {model_name}")
+    return cast(Column[Any], model_column)
