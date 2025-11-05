@@ -1933,15 +1933,49 @@ class FastCRUD(
 
         if data_list:
             if nest_joins:
-                nested_data: dict = {}
-                for data in data_list:
-                    nested_data = nest_join_data(
-                        data,
-                        join_definitions,
-                        get_first_primary_key,
-                        nested_data=nested_data,
+                one_to_many_count = sum(
+                    1
+                    for join in join_definitions
+                    if join.relationship_type == "one-to-many"
+                )
+
+                if one_to_many_count > 1:
+                    pre_nested_data = []
+                    for row_data in data_list:
+                        nested_row = nest_join_data(
+                            data=row_data,
+                            join_definitions=join_definitions,
+                            get_primary_key_func=get_first_primary_key,
+                        )
+                        pre_nested_data.append(nested_row)
+
+                    processor = JoinProcessor(self.model)
+                    nested_results = processor.process_multi_join(
+                        data=pre_nested_data,
+                        joins_config=join_definitions,
+                        return_as_model=False,
+                        schema_to_select=None,
+                        nested_schema_to_select={
+                            (
+                                join.join_prefix.rstrip("_")
+                                if join.join_prefix
+                                else join.model.__tablename__
+                            ): join.schema_to_select
+                            for join in join_definitions
+                            if join.schema_to_select
+                        },
                     )
-                return nested_data
+                    return dict(nested_results[0]) if nested_results else {}
+                else:
+                    nested_data: dict = {}
+                    for data in data_list:
+                        nested_data = nest_join_data(
+                            data,
+                            join_definitions,
+                            get_first_primary_key,
+                            nested_data=nested_data,
+                        )
+                    return nested_data
             return data_list[0]
 
         return None
