@@ -55,6 +55,9 @@ class SortProcessor:
             ...     stmt, ['name', 'created_at'], ['asc', 'desc']
             ... )
         """
+        if sort_orders and not sort_columns:
+            raise ValueError("Sort orders provided without corresponding sort columns.")
+
         if not sort_columns:
             return stmt
 

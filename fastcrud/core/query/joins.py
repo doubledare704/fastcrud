@@ -25,7 +25,9 @@ class JoinBuilder:
         """
         self.model = model
 
-    def prepare_joins(self, stmt: Select, joins_config: list[Any]) -> Select:
+    def prepare_joins(
+        self, stmt: Select, joins_config: list[Any], use_temporary_prefix: bool = False
+    ) -> Select:
         """
         Prepare and apply joins to SELECT statement.
 
@@ -56,16 +58,13 @@ class JoinBuilder:
         for join in joins_config:
             model = getattr(join, "alias", None) or getattr(join, "model")
 
-            if hasattr(join, "schema_to_select") and join.schema_to_select:
-                join_select = extract_matching_columns_from_schema(
-                    model,
-                    join.schema_to_select,
-                    getattr(join, "join_prefix", None),
-                    getattr(join, "alias", None),
-                    getattr(join, "use_temporary_prefix", False),
-                )
-            else:
-                join_select = [model]
+            join_select = extract_matching_columns_from_schema(
+                model,
+                getattr(join, "schema_to_select", None),
+                getattr(join, "join_prefix", None),
+                getattr(join, "alias", None),
+                use_temporary_prefix,
+            )
 
             joined_model_filters = []
             if hasattr(join, "filters") and join.filters:
@@ -76,16 +75,13 @@ class JoinBuilder:
             join_on = getattr(join, "join_on")
 
             if join_type == "left":
-                stmt = stmt.outerjoin(model, join_on)
+                stmt = stmt.outerjoin(model, join_on).add_columns(*join_select)
             elif join_type == "inner":
-                stmt = stmt.join(model, join_on)
+                stmt = stmt.join(model, join_on).add_columns(*join_select)
             else:
                 raise ValueError(
                     f"Unsupported join type: {join_type}. Supported types: 'left', 'inner'"
                 )
-
-            if join_select and join_select != [model]:
-                stmt = stmt.add_columns(*join_select)
 
             if joined_model_filters:
                 stmt = stmt.filter(*joined_model_filters)

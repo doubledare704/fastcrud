@@ -175,15 +175,15 @@ class FilterProcessor:
         """
         Handle NOT conditions: field__not={'gt': 5}
 
-        This creates NOT conditions for multiple operators on the same field.
-        The result is NOT (condition1 AND condition2 AND ...)
+        This creates individual NOT conditions for each operator on the same field.
+        The result is [NOT condition1, NOT condition2, ...] (all must be true)
 
         Args:
             col: SQLAlchemy column to apply conditions to
             value: Dictionary of operator -> value mappings
 
         Returns:
-            List containing single NOT condition
+            List containing individual NOT conditions
 
         Raises:
             ValueError: If value is not a dictionary
@@ -202,7 +202,7 @@ class FilterProcessor:
                             if not_op == "between"
                             else filter_func(col)(single_value)
                         )
-                        not_conditions.append(condition)
+                        not_conditions.append(not_(condition))
             else:
                 filter_func = get_sqlalchemy_filter(not_op, not_value)
                 if filter_func:
@@ -211,9 +211,9 @@ class FilterProcessor:
                         if not_op == "between"
                         else filter_func(col)(not_value)
                     )
-                    not_conditions.append(condition)
+                    not_conditions.append(not_(condition))
 
-        return [not_(and_(*not_conditions))] if not_conditions else []
+        return [and_(*not_conditions)] if not_conditions else []
 
     def _handle_standard_filter(
         self, col: Column, operator: str, value: Any
@@ -267,6 +267,12 @@ class FilterProcessor:
         for field, value in or_dict.items():
             if "." in field:
                 or_conditions.extend(self._handle_joined_filter(field, value))
+            elif "__" in field:
+                field_name, operator = field.rsplit("__", 1)
+                model_column = get_model_column(model, field_name)
+                or_conditions.extend(
+                    self._handle_standard_filter(model_column, operator, value)
+                )
             else:
                 model_column = get_model_column(model, field)
                 or_conditions.append(model_column == value)
