@@ -5,13 +5,18 @@ This module provides the main SQLQueryBuilder class that coordinates
 query construction with support for filtering, sorting, pagination, and joins.
 """
 
-from typing import Optional, Union, Any
-from sqlalchemy import Select, select
+from typing import Optional, Union, Any, TYPE_CHECKING
+from sqlalchemy import Select, select, func
 from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .sorting import SortProcessor
 from .joins import JoinBuilder
 from ...types import ModelType
+from ..introspection import get_primary_key_columns
+
+if TYPE_CHECKING:
+    from ...types import SelectSchemaType
 
 
 class SQLQueryBuilder:
@@ -121,23 +126,146 @@ class SQLQueryBuilder:
             stmt = stmt.limit(limit)
         return stmt
 
-    def prepare_joins(self, stmt: Select, joins_config: list[Any]) -> Select:
+    def prepare_joins(
+        self,
+        stmt: Select,
+        joins_config: list[Any],
+        use_temporary_prefix: bool = False,
+        select_joined_columns: bool = True,
+    ) -> Select:
         """
         Apply joins to statement.
 
         Args:
             stmt: SQLAlchemy SELECT statement to modify
             joins_config: List of join configurations
+            use_temporary_prefix: Whether to use temporary prefixes for joins
+            select_joined_columns: Whether to add joined columns to SELECT
 
         Returns:
             Modified SELECT statement with JOIN clauses
-
-        Raises:
-            NotImplementedError: Join logic will be implemented in future phase
 
         Example:
             >>> builder = SQLQueryBuilder(User)
             >>> stmt = builder.build_base_select()
             >>> joined_stmt = builder.prepare_joins(stmt, [join_config])
         """
-        return self.join_builder.prepare_joins(stmt, joins_config)
+        return self.join_builder.prepare_joins(
+            stmt, joins_config, use_temporary_prefix, select_joined_columns
+        )
+
+
+def build_joined_query(
+    model: type[ModelType],
+    query_builder: "SQLQueryBuilder",
+    filter_processor: Any,
+    config: dict[str, Any],
+    schema_to_select: Optional[type["SelectSchemaType"]] = None,
+    nest_joins: bool = False,
+    **kwargs: Any,
+) -> Select:
+    """
+    Build SELECT statement with joins using core utilities.
+
+    Args:
+        model: Primary SQLAlchemy model class
+        query_builder: SQLQueryBuilder instance
+        filter_processor: FilterProcessor instance
+        config: Configuration dictionary with join_definitions and counts_config
+        schema_to_select: Pydantic schema for column selection
+        nest_joins: Whether to use temporary prefixes for nesting
+        **kwargs: Additional filter parameters
+
+    Returns:
+        SQLAlchemy SELECT statement with joins and filters
+    """
+    from ..field_management import extract_matching_columns_from_schema
+
+    primary_select = extract_matching_columns_from_schema(
+        model=model, schema=schema_to_select
+    )
+    stmt = query_builder.build_base_select(primary_select)
+
+    join_definitions = config["join_definitions"]
+    stmt = query_builder.prepare_joins(stmt, join_definitions, nest_joins)
+
+    if config["counts_config"]:
+        for count in config["counts_config"]:
+            count_model = count.model
+            count_alias = count.alias or f"{count_model.__tablename__}_count"
+
+            count_primary_keys = get_primary_key_columns(count_model)
+            if not count_primary_keys:
+                raise ValueError(
+                    f"The model '{count_model.__name__}' does not have a primary key defined, which is required for counting."
+                )
+
+            count_subquery = select(func.count()).where(count.join_on)
+            if count.filters:
+                count_filters = filter_processor.parse_filters(
+                    model=count_model, **count.filters
+                )
+                if count_filters:
+                    count_subquery = count_subquery.filter(*count_filters)
+
+            stmt = stmt.add_columns(count_subquery.scalar_subquery().label(count_alias))
+
+    non_filter_params = {
+        "schema_to_select",
+        "join_model",
+        "join_on",
+        "join_prefix",
+        "join_schema_to_select",
+        "join_type",
+        "alias",
+        "join_filters",
+        "nest_joins",
+        "offset",
+        "limit",
+        "sort_columns",
+        "sort_orders",
+        "return_as_model",
+        "joins_config",
+        "counts_config",
+        "return_total_count",
+        "relationship_type",
+        "nested_schema_to_select",
+    }
+    filter_kwargs = {k: v for k, v in kwargs.items() if k not in non_filter_params}
+    primary_filters = filter_processor.parse_filters(**filter_kwargs)
+    if primary_filters:
+        stmt = query_builder.apply_filters(stmt, primary_filters)
+
+    return stmt
+
+
+async def execute_joined_query(
+    db: AsyncSession,
+    stmt: Select,
+    query_builder: "SQLQueryBuilder",
+    limit: Optional[int] = None,
+    offset: int = 0,
+    sort_columns: Optional[Union[str, list[str]]] = None,
+    sort_orders: Optional[Union[str, list[str]]] = None,
+) -> list[dict]:
+    """
+    Execute query and return raw results.
+
+    Args:
+        db: Database session
+        stmt: SQLAlchemy SELECT statement
+        query_builder: SQLQueryBuilder instance for sorting/pagination
+        limit: Maximum number of records to return
+        offset: Number of records to skip
+        sort_columns: Columns to sort by
+        sort_orders: Sort order for columns
+
+    Returns:
+        List of dictionaries containing query results
+    """
+    if sort_columns:
+        stmt = query_builder.apply_sorting(stmt, sort_columns, sort_orders)
+    stmt = query_builder.apply_pagination(stmt, offset, limit)
+
+    result = await db.execute(stmt)
+    return [dict(row) for row in result.mappings().all()]

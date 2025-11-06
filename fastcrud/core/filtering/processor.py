@@ -340,3 +340,64 @@ class FilterProcessor:
             return [target_column == value]
         else:
             return self._handle_standard_filter(target_column, operator, value)
+
+    def separate_joined_filters(
+        self, **kwargs: Any
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """
+        Detect and separate joined model filters from regular filters.
+
+        This method analyzes filter arguments and separates those that target
+        joined models (indicated by dot notation) from regular model filters.
+        Uses existing core validation utilities for robust parsing.
+
+        Args:
+            **kwargs: Filter arguments to process
+
+        Returns:
+            tuple: (regular_filters, joined_filters_info)
+            - regular_filters: Filters that apply to the base model
+            - joined_filters_info: Dict mapping relationship names to their filters
+
+        Example:
+            >>> processor = FilterProcessor(User)
+            >>> regular, joined = processor.separate_joined_filters(
+            ...     name="John",
+            ...     profile__bio__ilike="%developer%",
+            ...     posts__title="My Post"
+            ... )
+            >>> # regular = {"name": "John"}
+            >>> # joined = {
+            >>> #     "profile": {"bio__ilike": "%developer%"},
+            >>> #     "posts": {"title": "My Post"}
+            >>> # }
+        """
+        regular_filters = {}
+        joined_filters_info: dict[str, dict[str, Any]] = {}
+
+        for key, value in kwargs.items():
+            if "." in key:
+                try:
+                    validate_joined_filter_format(key)
+
+                    if "__" in key:
+                        field_path, operator = key.rsplit("__", 1)
+                    else:
+                        field_path, operator = key, None
+
+                    path_parts = field_path.split(".")
+                    relationship_name = path_parts[0]
+                    remaining_path = ".".join(path_parts[1:])
+
+                    if relationship_name not in joined_filters_info:
+                        joined_filters_info[relationship_name] = {}
+
+                    filter_key = remaining_path + (f"__{operator}" if operator else "")
+                    joined_filters_info[relationship_name][filter_key] = value
+
+                except ValueError:
+                    regular_filters[key] = value
+            else:
+                regular_filters[key] = value
+
+        return regular_filters, joined_filters_info

@@ -101,9 +101,7 @@ async def test_count_with_joins_config_many_to_many(async_session):
         ),
     ]
 
-    count = await crud_project.count(
-        async_session, joins_config=joins_config, participant_id=1
-    )
+    count = await crud_project.count(async_session, joins_config=joins_config)
 
     assert (
         count == 2

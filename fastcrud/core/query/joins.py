@@ -26,7 +26,11 @@ class JoinBuilder:
         self.model = model
 
     def prepare_joins(
-        self, stmt: Select, joins_config: list[Any], use_temporary_prefix: bool = False
+        self,
+        stmt: Select,
+        joins_config: list[Any],
+        use_temporary_prefix: bool = False,
+        select_joined_columns: bool = True,
     ) -> Select:
         """
         Prepare and apply joins to SELECT statement.
@@ -38,6 +42,8 @@ class JoinBuilder:
         Args:
             stmt: SQLAlchemy SELECT statement to modify
             joins_config: List of JoinConfig objects defining join operations
+            use_temporary_prefix: Whether to use temporary prefixes for joins
+            select_joined_columns: Whether to add joined columns to SELECT. Set to False for count operations.
 
         Returns:
             Modified SELECT statement with JOIN clauses applied
@@ -75,9 +81,13 @@ class JoinBuilder:
             join_on = getattr(join, "join_on")
 
             if join_type == "left":
-                stmt = stmt.outerjoin(model, join_on).add_columns(*join_select)
+                stmt = stmt.outerjoin(model, join_on)
+                if select_joined_columns:
+                    stmt = stmt.add_columns(*join_select)
             elif join_type == "inner":
-                stmt = stmt.join(model, join_on).add_columns(*join_select)
+                stmt = stmt.join(model, join_on)
+                if select_joined_columns:
+                    stmt = stmt.add_columns(*join_select)
             else:
                 raise ValueError(
                     f"Unsupported join type: {join_type}. Supported types: 'left', 'inner'"

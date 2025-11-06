@@ -15,7 +15,13 @@ to avoid repeated expensive operations while maintaining clean, functional APIs.
 from .introspection import ModelInspector, get_model_inspector
 from .join_processing import JoinProcessor, handle_null_primary_key_multi_join
 from .filtering import FilterProcessor, get_sqlalchemy_filter
-from .query import SQLQueryBuilder, SortProcessor, JoinBuilder
+from .query import (
+    SQLQueryBuilder,
+    SortProcessor,
+    JoinBuilder,
+    build_joined_query,
+    execute_joined_query,
+)
 
 from .introspection import (
     get_primary_key_names,
@@ -37,6 +43,11 @@ from .data_processing import (
     handle_one_to_many,
     convert_to_pydantic_models,
     build_column_label,
+    format_single_response,
+    format_multi_response,
+    create_paginated_response_data,
+    process_joined_data,
+    format_joined_response,
 )
 
 # Pagination
@@ -87,6 +98,8 @@ __all__ = [
     "SQLQueryBuilder",
     "SortProcessor",
     "JoinBuilder",
+    "build_joined_query",
+    "execute_joined_query",
     # Introspection functions
     "get_primary_key_names",
     "get_primary_key_columns",
@@ -104,6 +117,11 @@ __all__ = [
     "handle_one_to_many",
     "convert_to_pydantic_models",
     "build_column_label",
+    "format_single_response",
+    "format_multi_response",
+    "create_paginated_response_data",
+    "process_joined_data",
+    "format_joined_response",
     # Pagination utilities
     "compute_offset",
     "paginated_response",

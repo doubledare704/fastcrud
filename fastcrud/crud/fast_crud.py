@@ -1,29 +1,21 @@
-from typing import Any, Generic, Union, Optional, Callable, cast, Sequence
+from typing import Any, Generic, Union, Optional, Callable
 from datetime import datetime, timezone
 
-from pydantic import ValidationError
 from sqlalchemy import (
-    Insert,
-    Result,
-    and_,
     select,
     update,
     delete,
     func,
-    inspect,
-    asc,
-    desc,
     column,
     Column,
 )
-from sqlalchemy.exc import MultipleResultsFound, NoResultFound
+from sqlalchemy.exc import MultipleResultsFound
 from sqlalchemy.sql import Join
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.engine.row import Row
 from sqlalchemy.orm.util import AliasedClass
 from sqlalchemy.sql.elements import BinaryExpression, ColumnElement
 from sqlalchemy.sql.selectable import Select
-from sqlalchemy.dialects import postgresql, sqlite, mysql
 
 from fastcrud.types import (
     CreateSchemaType,
@@ -39,19 +31,33 @@ from fastcrud.types import (
 from ..core import (
     extract_matching_columns_from_schema,
     auto_detect_join_condition,
-    nest_join_data,
-    JoinProcessor,
     JoinConfig,
     CountConfig,
     get_primary_key_names,
     get_primary_key_columns,
-    get_first_primary_key,
-    handle_null_primary_key_multi_join,
-    # New core utilities
     FilterProcessor,
     SQLQueryBuilder,
-    get_model_column,
-    get_sqlalchemy_filter,
+    format_multi_response,
+    process_joined_data,
+    build_joined_query,
+    execute_joined_query,
+    format_joined_response,
+)
+
+from .validation import (
+    validate_update_delete_operation,
+    validate_pagination_params,
+    validate_joined_query_params,
+)
+from .data_preparation import prepare_update_data
+from .execution import (
+    execute_update_and_return_response,
+    handle_joined_filters_delegation,
+)
+from .database_specific import (
+    upsert_multi_postgresql,
+    upsert_multi_sqlite,
+    upsert_multi_mysql,
 )
 
 FilterCallable = Callable[[Column[Any]], Callable[..., ColumnElement[bool]]]
@@ -476,61 +482,8 @@ class FastCRUD(
         self.updated_at_column = updated_at_column
         self.multi_response_key = multi_response_key
         self._primary_keys = get_primary_key_columns(self.model)
-
-        # Initialize new core utilities
         self._filter_processor = FilterProcessor(self.model)
         self._query_builder = SQLQueryBuilder(self.model)
-
-    def _get_sqlalchemy_filter(
-        self,
-        operator: str,
-        value: Any,
-    ) -> Optional[FilterCallable]:
-        """Get SQLAlchemy filter function for operator with validation."""
-        return cast(Optional[FilterCallable], get_sqlalchemy_filter(operator, value))
-
-    def _parse_filters(
-        self, model: Optional[Union[type[ModelType], AliasedClass]] = None, **kwargs
-    ) -> list[ColumnElement]:
-        """Parse and convert filter arguments into SQLAlchemy filter conditions.
-
-        Args:
-            model: The model to apply filters to. Defaults to self.model
-            **kwargs: Filter arguments in the format field_name__operator=value
-                     or joined_model.field_name__operator=value for joined model filters
-
-        Returns:
-            List of SQLAlchemy filter conditions
-        """
-        return self._filter_processor.parse_filters(model=model, **kwargs)
-
-    def _get_column(
-        self, model: Union[type[ModelType], AliasedClass], field_name: str
-    ) -> Column[Any]:
-        """Get column from model, raising ValueError if not found."""
-        return cast(Column[Any], get_model_column(model, field_name))
-
-    def _apply_sorting(
-        self,
-        stmt: Select,
-        sort_columns: Union[str, list[str]],
-        sort_orders: Optional[Union[str, list[str]]] = None,
-    ) -> Select:
-        """Apply sorting to a SQLAlchemy query using SortProcessor."""
-        return self._query_builder.sort_processor.apply_sorting_to_statement(
-            stmt, sort_columns, sort_orders
-        )
-
-    def _prepare_and_apply_joins(
-        self,
-        stmt: Select,
-        joins_config: list[JoinConfig],
-        use_temporary_prefix: bool = False,
-    ):
-        """Apply joins to SQL statement using JoinBuilder."""
-        return self._query_builder.join_builder.prepare_joins(
-            stmt, joins_config, use_temporary_prefix
-        )
 
     async def create(
         self,
@@ -641,11 +594,11 @@ class FastCRUD(
         to_select = extract_matching_columns_from_schema(
             model=self.model, schema=schema_to_select
         )
-        filters = self._parse_filters(**kwargs)
+        filters = self._filter_processor.parse_filters(**kwargs)
         stmt = select(*to_select).filter(*filters)
 
         if sort_columns:
-            stmt = self._apply_sorting(stmt, sort_columns, sort_orders)
+            stmt = self._query_builder.apply_sorting(stmt, sort_columns, sort_orders)
         return stmt
 
     async def get(
@@ -796,15 +749,23 @@ class FastCRUD(
         """
         if update_override is None:
             update_override = {}
-        filters = self._parse_filters(**kwargs)
+        filters = self._filter_processor.parse_filters(**kwargs)
 
         if db.bind.dialect.name == "postgresql":
-            statement, params = await self._upsert_multi_postgresql(
-                instances, filters, update_override
+            statement, params = await upsert_multi_postgresql(
+                self.model,
+                [pk.name for pk in self._primary_keys],
+                instances,
+                filters,
+                update_override,
             )
         elif db.bind.dialect.name == "sqlite":
-            statement, params = await self._upsert_multi_sqlite(
-                instances, filters, update_override
+            statement, params = await upsert_multi_sqlite(
+                self.model,
+                [pk.name for pk in self._primary_keys],
+                instances,
+                filters,
+                update_override,
             )
         elif db.bind.dialect.name in ["mysql", "mariadb"]:
             if filters:
@@ -815,8 +776,11 @@ class FastCRUD(
                 raise ValueError(
                     "MySQL does not support the returning clause for insert operations."
                 )
-            statement, params = await self._upsert_multi_mysql(
-                instances, update_override
+            statement, params = await upsert_multi_mysql(
+                self.model,
+                instances,
+                update_override,
+                self.deleted_at_column,
             )
         else:  # pragma: no cover
             raise NotImplementedError(
@@ -831,81 +795,16 @@ class FastCRUD(
             db_row = await db.execute(statement, params)
             if commit:
                 await db.commit()
-            return self._as_multi_response(
-                db_row,
-                schema_to_select=schema_to_select,
-                return_as_model=return_as_model,
+            rows_data = [dict(row) for row in db_row.mappings()]
+            formatted_data = format_multi_response(
+                rows_data, schema_to_select, return_as_model
             )
+            return {"data": formatted_data}
 
         await db.execute(statement, params)
         if commit:
             await db.commit()
         return None
-
-    async def _upsert_multi_postgresql(
-        self,
-        instances: list[Union[UpdateSchemaType, CreateSchemaType]],
-        filters: list[ColumnElement],
-        update_set_override: dict[str, Any],
-    ) -> tuple[Insert, list[dict]]:
-        statement = postgresql.insert(self.model)
-        statement = statement.on_conflict_do_update(
-            index_elements=self._primary_keys,
-            set_={
-                column.name: getattr(statement.excluded, column.name)
-                for column in self.model.__table__.columns
-                if not column.primary_key and not column.unique
-            }
-            | update_set_override,
-            where=and_(*filters) if filters else None,
-        )
-        params = [
-            self.model(**instance.model_dump()).__dict__ for instance in instances
-        ]
-        return statement, params
-
-    async def _upsert_multi_sqlite(
-        self,
-        instances: list[Union[UpdateSchemaType, CreateSchemaType]],
-        filters: list[ColumnElement],
-        update_set_override: dict[str, Any],
-    ) -> tuple[Insert, list[dict]]:
-        statement = sqlite.insert(self.model)
-        statement = statement.on_conflict_do_update(
-            index_elements=self._primary_keys,
-            set_={
-                column.name: getattr(statement.excluded, column.name)
-                for column in self.model.__table__.columns
-                if not column.primary_key and not column.unique
-            }
-            | update_set_override,
-            where=and_(*filters) if filters else None,
-        )
-        params = [
-            self.model(**instance.model_dump()).__dict__ for instance in instances
-        ]
-        return statement, params
-
-    async def _upsert_multi_mysql(
-        self,
-        instances: list[Union[UpdateSchemaType, CreateSchemaType]],
-        update_set_override: dict[str, Any],
-    ) -> tuple[Insert, list[dict]]:
-        statement = mysql.insert(self.model)
-        statement = statement.on_duplicate_key_update(
-            {
-                column.name: getattr(statement.inserted, column.name)
-                for column in self.model.__table__.columns
-                if not column.primary_key
-                and not column.unique
-                and column.name != self.deleted_at_column
-            }
-            | update_set_override,
-        )
-        params = [
-            self.model(**instance.model_dump()).__dict__ for instance in instances
-        ]
-        return statement, params
 
     async def exists(self, db: AsyncSession, **kwargs: Any) -> bool:
         """
@@ -945,7 +844,7 @@ class FastCRUD(
             exists = await user_crud.exists(db, username__ne='admin')
             ```
         """
-        filters = self._parse_filters(**kwargs)
+        filters = self._filter_processor.parse_filters(**kwargs)
         stmt = select(self.model).filter(*filters).limit(1)
 
         result = await db.execute(stmt)
@@ -1033,10 +932,7 @@ class FastCRUD(
             count = await project_crud.count(db, joins_config=joins_config)
             ```
         """
-        # Extract non-filter parameters from kwargs for count method
-        non_filter_params = {"participant_id"}  # Add known non-column parameters
-        filter_kwargs = {k: v for k, v in kwargs.items() if k not in non_filter_params}
-        primary_filters = self._parse_filters(**filter_kwargs)
+        primary_filters = self._filter_processor.parse_filters(**kwargs)
 
         if joins_config is not None:
             primary_keys = list(get_primary_key_names(self.model))
@@ -1048,25 +944,10 @@ class FastCRUD(
                 getattr(self.model, pk).label(f"distinct_{pk}") for pk in primary_keys
             ]
             base_query = select(*to_select)
-
-            for join in joins_config:
-                join_model = join.alias or join.model
-                join_filters = (
-                    self._parse_filters(model=join_model, **join.filters)
-                    if join.filters
-                    else []
-                )
-
-                if join.join_type == "inner":
-                    base_query = base_query.join(join_model, join.join_on)
-                else:
-                    base_query = base_query.outerjoin(join_model, join.join_on)
-
-                if join_filters:
-                    base_query = base_query.where(*join_filters)
-
-            if primary_filters:
-                base_query = base_query.where(*primary_filters)
+            base_query = self._query_builder.prepare_joins(
+                base_query, joins_config, select_joined_columns=False
+            )
+            base_query = self._query_builder.apply_filters(base_query, primary_filters)
 
             if distinct_on_primary:
                 base_query = base_query.distinct()
@@ -1076,51 +957,15 @@ class FastCRUD(
                 count_query = select(func.count()).select_from(base_query.subquery())
         else:
             count_query = select(func.count()).select_from(self.model)
-            if primary_filters:
-                count_query = count_query.where(*primary_filters)
+            count_query = self._query_builder.apply_filters(
+                count_query, primary_filters
+            )
 
         total_count: Optional[int] = await db.scalar(count_query)
         if total_count is None:
             raise ValueError("Could not find the count.")
 
         return total_count
-
-    def _detect_joined_filters(
-        self, **kwargs: Any
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
-        """
-        Detect and separate joined model filters from regular filters.
-
-        Returns:
-            tuple: (regular_filters, joined_filters_info)
-            joined_filters_info contains information about required joins
-        """
-        regular_filters = {}
-        joined_filters_info: dict[str, dict[str, Any]] = {}
-
-        for key, value in kwargs.items():
-            if "." in key:
-                if "__" in key:
-                    field_path, operator = key.rsplit("__", 1)
-                else:
-                    field_path, operator = key, None
-
-                path_parts = field_path.split(".")
-                if len(path_parts) >= 2:
-                    relationship_name = path_parts[0]
-                    remaining_path = ".".join(path_parts[1:])
-
-                    if relationship_name not in joined_filters_info:
-                        joined_filters_info[relationship_name] = {}
-
-                    filter_key = remaining_path + (f"__{operator}" if operator else "")
-                    joined_filters_info[relationship_name][filter_key] = value
-                else:
-                    regular_filters[key] = value
-            else:
-                regular_filters[key] = value
-
-        return regular_filters, joined_filters_info
 
     async def get_multi(
         self,
@@ -1231,44 +1076,25 @@ class FastCRUD(
             )
             ```
         """
-        if (limit is not None and limit < 0) or offset < 0:
-            raise ValueError("Limit and offset must be non-negative.")
-
-        regular_filters, joined_filters_info = self._detect_joined_filters(**kwargs)
+        validate_pagination_params(offset, limit)
+        regular_filters, joined_filters_info = (
+            self._filter_processor.separate_joined_filters(**kwargs)
+        )
 
         if joined_filters_info:
-            if len(joined_filters_info) == 1:
-                relationship_name = list(joined_filters_info.keys())[0]
-                relationship_filters = joined_filters_info[relationship_name]
-
-                relationship = getattr(self.model, relationship_name, None)
-                if relationship is None:
-                    raise ValueError(
-                        f"Relationship '{relationship_name}' not found in model '{self.model.__name__}'"
-                    )
-
-                if hasattr(relationship.property, "mapper"):
-                    join_model = relationship.property.mapper.class_
-                else:
-                    raise ValueError(
-                        f"Invalid relationship '{relationship_name}' in model '{self.model.__name__}'"
-                    )
-
-                return await self.get_multi_joined(
-                    db=db,
-                    offset=offset,
-                    limit=limit,
-                    schema_to_select=schema_to_select,
-                    join_model=join_model,
-                    join_filters=relationship_filters,
-                    sort_columns=sort_columns,
-                    sort_orders=sort_orders,
-                    return_as_model=return_as_model,
-                    return_total_count=return_total_count,
-                    **regular_filters,
-                )
-            else:
-                pass
+            return await handle_joined_filters_delegation(
+                crud_instance=self,
+                joined_filters_info=joined_filters_info,
+                db=db,
+                offset=offset,
+                limit=limit,
+                schema_to_select=schema_to_select,
+                sort_columns=sort_columns,
+                sort_orders=sort_orders,
+                return_as_model=return_as_model,
+                return_total_count=return_total_count,
+                **regular_filters,
+            )
 
         stmt = await self.select(
             schema_to_select=schema_to_select,
@@ -1277,32 +1103,15 @@ class FastCRUD(
             **kwargs,
         )
 
-        if offset:
-            stmt = stmt.offset(offset)
-        if limit is not None:
-            stmt = stmt.limit(limit)
-
+        stmt = self._query_builder.apply_pagination(stmt, offset, limit)
         result = await db.execute(stmt)
         data = [dict(row) for row in result.mappings()]
+        formatted_data = format_multi_response(data, schema_to_select, return_as_model)
 
-        response: dict[str, Any] = {self.multi_response_key: data}
-
+        response: dict[str, Any] = {self.multi_response_key: formatted_data}
         if return_total_count:
             total_count = await self.count(db=db, **kwargs)
             response["total_count"] = total_count
-
-        if return_as_model:
-            if not schema_to_select:
-                raise ValueError(
-                    "schema_to_select must be provided when return_as_model is True."
-                )
-            try:
-                model_data = [schema_to_select(**row) for row in data]
-                response[self.multi_response_key] = model_data
-            except ValidationError as e:
-                raise ValueError(
-                    f"Data validation error for schema {schema_to_select.__name__}: {e}"
-                )
 
         return response
 
@@ -1573,14 +1382,16 @@ class FastCRUD(
             model=self.model,
             schema=schema_to_select,
         )
-        stmt: Select = select(*primary_select).select_from(self.model)
+        stmt = self._query_builder.build_base_select(primary_select)
 
         join_definitions = joins_config if joins_config else []
         if join_model:
             join_definitions.append(
                 JoinConfig(
                     model=join_model,
-                    join_on=join_on,
+                    join_on=join_on
+                    if join_on is not None
+                    else auto_detect_join_condition(self.model, join_model),
                     join_prefix=join_prefix,
                     schema_to_select=join_schema_to_select,
                     join_type=join_type,
@@ -1590,12 +1401,11 @@ class FastCRUD(
                 )
             )
 
-        stmt = self._prepare_and_apply_joins(
+        stmt = self._query_builder.prepare_joins(
             stmt=stmt, joins_config=join_definitions, use_temporary_prefix=nest_joins
         )
-        primary_filters = self._parse_filters(**kwargs)
-        if primary_filters:
-            stmt = stmt.filter(*primary_filters)
+        primary_filters = self._filter_processor.parse_filters(**kwargs)
+        stmt = self._query_builder.apply_filters(stmt, primary_filters)
 
         db_rows = await db.execute(stmt)
         if any(join.relationship_type == "one-to-many" for join in join_definitions):
@@ -1612,54 +1422,7 @@ class FastCRUD(
             else:
                 data_list = []
 
-        if data_list:
-            if nest_joins:
-                one_to_many_count = sum(
-                    1
-                    for join in join_definitions
-                    if join.relationship_type == "one-to-many"
-                )
-
-                if one_to_many_count > 1:
-                    pre_nested_data = []
-                    for row_data in data_list:
-                        nested_row = nest_join_data(
-                            data=row_data,
-                            join_definitions=join_definitions,
-                            get_primary_key_func=get_first_primary_key,
-                        )
-                        pre_nested_data.append(nested_row)
-
-                    processor = JoinProcessor(self.model)
-                    nested_results = processor.process_multi_join(
-                        data=pre_nested_data,
-                        joins_config=join_definitions,
-                        return_as_model=False,
-                        schema_to_select=None,
-                        nested_schema_to_select={
-                            (
-                                join.join_prefix.rstrip("_")
-                                if join.join_prefix
-                                else join.model.__tablename__
-                            ): join.schema_to_select
-                            for join in join_definitions
-                            if join.schema_to_select
-                        },
-                    )
-                    return dict(nested_results[0]) if nested_results else {}
-                else:
-                    nested_data: dict = {}
-                    for data in data_list:
-                        nested_data = nest_join_data(
-                            data,
-                            join_definitions,
-                            get_first_primary_key,
-                            nested_data=nested_data,
-                        )
-                    return nested_data
-            return data_list[0]
-
-        return None
+        return process_joined_data(data_list, join_definitions, nest_joins, self.model)
 
     async def get_multi_joined(
         self,
@@ -1682,6 +1445,7 @@ class FastCRUD(
         counts_config: Optional[list[CountConfig]] = None,
         return_total_count: bool = True,
         relationship_type: Optional[str] = None,
+        nested_schema_to_select: Optional[dict[str, type[SelectSchemaType]]] = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
         """
@@ -1709,6 +1473,7 @@ class FastCRUD(
             counts_config: List of `CountConfig` instances for counting related objects. Each instance defines a model to count, join condition, and optional alias for the count column. Useful for many-to-many relationships.
             return_total_count: If `True`, also returns the total count of rows with the selected filters. Useful for pagination.
             relationship_type: Specifies the relationship type, such as `"one-to-one"` or `"one-to-many"`. Used to determine how to nest the joined data. If `None`, uses `"one-to-one"`.
+            nested_schema_to_select: A dictionary mapping join prefixes to their corresponding Pydantic schemas for nested data conversion. If not provided, schemas are auto-detected from `joins_config`.
             **kwargs: Filters to apply to the primary query, including advanced comparison operators for refined searching.
 
         Returns:
@@ -1987,165 +1752,54 @@ class FastCRUD(
             # }
             ```
         """
-        if joins_config and (
-            join_model
-            or join_prefix
-            or join_on
-            or join_schema_to_select
-            or alias
-            or relationship_type
-        ):
-            raise ValueError(
-                "Cannot use both single join parameters and joins_config simultaneously."
-            )
-        elif not joins_config and not join_model and not counts_config:
-            raise ValueError(
-                "You need one of join_model, joins_config, or counts_config."
-            )
-
-        if (limit is not None and limit < 0) or offset < 0:
-            raise ValueError("Limit and offset must be non-negative.")
-
-        if relationship_type is None:
-            relationship_type = "one-to-one"
-
-        primary_select = extract_matching_columns_from_schema(
-            model=self.model, schema=schema_to_select
-        )
-        stmt: Select = select(*primary_select)
-
-        join_definitions = joins_config if joins_config else []
-        if join_model:
-            try:
-                join_definitions.append(
-                    JoinConfig(
-                        model=join_model,
-                        join_on=join_on
-                        if join_on is not None
-                        else auto_detect_join_condition(self.model, join_model),
-                        join_prefix=join_prefix,
-                        schema_to_select=join_schema_to_select,
-                        join_type=join_type,
-                        alias=alias,
-                        filters=join_filters,
-                        relationship_type=relationship_type,
-                    )
-                )
-            except ValueError as e:  # pragma: no cover
-                raise ValueError(f"Could not configure join: {str(e)}")
-
-        stmt = self._prepare_and_apply_joins(
-            stmt=stmt, joins_config=join_definitions, use_temporary_prefix=nest_joins
+        config = validate_joined_query_params(
+            primary_model=self.model,
+            joins_config=joins_config,
+            join_model=join_model,
+            join_prefix=join_prefix,
+            join_on=join_on,
+            join_schema_to_select=join_schema_to_select,
+            alias=alias,
+            relationship_type=relationship_type,
+            join_type=join_type,
+            join_filters=join_filters,
+            counts_config=counts_config,
+            limit=limit,
+            offset=offset,
         )
 
-        if counts_config:
-            for count in counts_config:
-                count_model = count.model
-                count_alias = count.alias or f"{count_model.__tablename__}_count"
+        stmt = build_joined_query(
+            model=self.model,
+            query_builder=self._query_builder,
+            filter_processor=self._filter_processor,
+            config=config,
+            schema_to_select=schema_to_select,
+            nest_joins=nest_joins,
+            **kwargs,
+        )
+        raw_data = await execute_joined_query(
+            db=db,
+            stmt=stmt,
+            query_builder=self._query_builder,
+            limit=limit,
+            offset=offset,
+            sort_columns=sort_columns,
+            sort_orders=sort_orders,
+        )
 
-                count_primary_keys = get_primary_key_columns(count_model)
-                if not count_primary_keys:
-                    raise ValueError(
-                        f"The model '{count_model.__name__}' does not have a primary key defined, which is required for counting."
-                    )
-
-                count_subquery = select(func.count()).where(count.join_on)
-
-                if count.filters:
-                    count_filters = self._parse_filters(
-                        model=count_model, **count.filters
-                    )
-                    if count_filters:
-                        count_subquery = count_subquery.filter(*count_filters)
-
-                stmt = stmt.add_columns(
-                    count_subquery.scalar_subquery().label(count_alias)
-                )
-
-        # Extract non-filter parameters from kwargs
-        non_filter_params = {"nested_schema_to_select"}
-        filter_kwargs = {k: v for k, v in kwargs.items() if k not in non_filter_params}
-        primary_filters = self._parse_filters(**filter_kwargs)
-        if primary_filters:
-            stmt = stmt.filter(*primary_filters)
-
-        if sort_columns:
-            stmt = self._apply_sorting(stmt, sort_columns, sort_orders)
-
-        if offset:
-            stmt = stmt.offset(offset)
-        if limit is not None:
-            stmt = stmt.limit(limit)
-
-        result = await db.execute(stmt)
-        data: list[Union[dict, SelectSchemaType]] = []
-
-        for row in result.mappings().all():
-            row_dict = dict(row)
-
-            if nest_joins:
-                row_dict = nest_join_data(
-                    data=row_dict,
-                    join_definitions=join_definitions,
-                    get_primary_key_func=get_first_primary_key,
-                )
-
-            if return_as_model:
-                if schema_to_select is None:
-                    raise ValueError(
-                        "schema_to_select must be provided when return_as_model is True."
-                    )
-                try:
-                    model_instance = schema_to_select(**row_dict)
-                    data.append(model_instance)
-                except ValidationError as e:
-                    raise ValueError(
-                        f"Data validation error for schema {schema_to_select.__name__}: {e}"
-                    )
-            else:
-                data.append(row_dict)
-
-        if nest_joins and any(
-            join.relationship_type == "one-to-many" for join in join_definitions
-        ):
-            processor = JoinProcessor(self.model)
-            nested_data = cast(
-                Sequence[Union[dict, Any]],
-                processor.process_multi_join(
-                    data=data,
-                    joins_config=join_definitions,
-                    return_as_model=return_as_model,
-                    schema_to_select=schema_to_select if return_as_model else None,
-                    nested_schema_to_select={
-                        (
-                            join.join_prefix.rstrip("_")
-                            if join.join_prefix
-                            else join.model.__tablename__
-                        ): join.schema_to_select
-                        for join in join_definitions
-                        if join.schema_to_select
-                    },
-                ),
-            )
-        else:
-            nested_data = handle_null_primary_key_multi_join(data, join_definitions)
-
-        response: dict[str, Any] = {"data": nested_data}
-
-        if return_total_count:
-            distinct_on_primary = bool(
-                nest_joins
-                and any(j.relationship_type == "one-to-many" for j in join_definitions)
-            )
-            total_count: int = await self.count(
-                db=db,
-                joins_config=join_definitions,
-                distinct_on_primary=distinct_on_primary,
-                **filter_kwargs,
-            )
-            response["total_count"] = total_count
-
-        return response
+        return await format_joined_response(
+            primary_model=self.model,
+            raw_data=raw_data,
+            config=config,
+            schema_to_select=schema_to_select,
+            return_as_model=return_as_model,
+            nest_joins=nest_joins,
+            return_total_count=return_total_count,
+            db=db,
+            nested_schema_to_select=nested_schema_to_select,
+            count_func=self.count if return_total_count else None,
+            **kwargs,
+        )
 
     async def get_multi_by_cursor(
         self,
@@ -2226,17 +1880,19 @@ class FastCRUD(
         stmt = await self.select(schema_to_select=schema_to_select, **kwargs)
 
         if cursor:
+            cursor_filter = []
             if sort_order == "asc":
-                stmt = stmt.filter(getattr(self.model, sort_column) > cursor)
+                cursor_filter = self._filter_processor.parse_filters(
+                    **{f"{sort_column}__gt": cursor}
+                )
             else:
-                stmt = stmt.filter(getattr(self.model, sort_column) < cursor)
+                cursor_filter = self._filter_processor.parse_filters(
+                    **{f"{sort_column}__lt": cursor}
+                )
+            stmt = self._query_builder.apply_filters(stmt, cursor_filter)
 
-        stmt = stmt.order_by(
-            asc(getattr(self.model, sort_column))
-            if sort_order == "asc"
-            else desc(getattr(self.model, sort_column))
-        )
-        stmt = stmt.limit(limit)
+        stmt = self._query_builder.apply_sorting(stmt, sort_column, sort_order)
+        stmt = self._query_builder.apply_pagination(stmt, 0, limit)
 
         result = await db.execute(stmt)
         data = [dict(row) for row in result.mappings()]
@@ -2333,97 +1989,29 @@ class FastCRUD(
             )
             ```
         """
-        total_count = await self.count(db, **kwargs)
-        if total_count == 0:
-            raise NoResultFound("No record found to update.")
-        if not allow_multiple and total_count > 1:
-            raise MultipleResultsFound(
-                f"Expected exactly one record to update, found {total_count}."
-            )
+        await validate_update_delete_operation(
+            self.count, db, allow_multiple, "update", **kwargs
+        )
+        update_data = prepare_update_data(
+            object, self.model_col_names, self.updated_at_column, self.model
+        )
 
-        if isinstance(object, dict):
-            update_data = object
-        else:
-            update_data = object.model_dump(exclude_unset=True)
-
-        updated_at_col = getattr(self.model, self.updated_at_column, None)
-        if updated_at_col:
-            update_data[self.updated_at_column] = datetime.now(timezone.utc)
-
-        update_data_keys = set(update_data.keys())
-        model_columns = {_column.name for _column in inspect(self.model).c}
-        extra_fields = update_data_keys - model_columns
-        if extra_fields:
-            raise ValueError(f"Extra fields provided: {extra_fields}")
-
-        filters = self._parse_filters(**kwargs)
+        filters = self._filter_processor.parse_filters(**kwargs)
         stmt = update(self.model).filter(*filters).values(update_data)
 
         if return_as_model:
             return_columns = self.model_col_names
 
-        if return_columns:
-            stmt = stmt.returning(*[column(name) for name in return_columns])
-            db_row = await db.execute(stmt)
-            if commit:
-                await db.commit()
-            if allow_multiple:
-                return self._as_multi_response(
-                    db_row,
-                    schema_to_select=schema_to_select,
-                    return_as_model=return_as_model,
-                )
-            return self._as_single_response(
-                db_row,
-                schema_to_select=schema_to_select,
-                return_as_model=return_as_model,
-                one_or_none=one_or_none,
-            )
-
-        await db.execute(stmt)
-        if commit:
-            await db.commit()
-        return None
-
-    def _as_single_response(
-        self,
-        db_row: Result,
-        schema_to_select: Optional[type[SelectSchemaType]] = None,
-        return_as_model: bool = False,
-        one_or_none: bool = False,
-    ) -> Optional[Union[dict, SelectSchemaType]]:
-        if not (result := db_row.one_or_none() if one_or_none else db_row.first()):
-            return None
-
-        out = dict(result._mapping)
-        if not return_as_model:
-            return out
-        if not schema_to_select:
-            raise ValueError(
-                "schema_to_select must be provided when return_as_model is True."
-            )
-        return schema_to_select(**out)
-
-    def _as_multi_response(
-        self,
-        db_row: Result,
-        schema_to_select: Optional[type[SelectSchemaType]] = None,
-        return_as_model: bool = False,
-    ) -> dict:
-        data = [dict(row) for row in db_row.mappings()]
-
-        if not return_as_model:
-            return {"data": data}
-
-        if not schema_to_select:
-            raise ValueError("schema_to_select required when return_as_model is True")
-
-        try:
-            return {"data": [schema_to_select(**row) for row in data]}
-        except ValidationError as e:
-            raise ValueError(
-                f"Schema validation error ({schema_to_select.__name__}): {e}"
-            )
+        return await execute_update_and_return_response(
+            db=db,
+            stmt=stmt,
+            commit=commit,
+            return_columns=return_columns,
+            schema_to_select=schema_to_select,
+            return_as_model=return_as_model,
+            allow_multiple=allow_multiple,
+            one_or_none=one_or_none,
+        )
 
     async def db_delete(
         self,
@@ -2516,7 +2104,7 @@ class FastCRUD(
                 f"Expected exactly one record to delete, found {total_count}."
             )
 
-        parsed_filters = self._parse_filters(**combined_filters)
+        parsed_filters = self._filter_processor.parse_filters(**combined_filters)
         stmt = delete(self.model).filter(*parsed_filters)
         await db.execute(stmt)
         if commit:
@@ -2621,15 +2209,11 @@ class FastCRUD(
                 "No filters provided. To prevent accidental deletion of all records, at least one filter must be specified."
             )
 
-        total_count = await self.count(db, **combined_filters)
-        if total_count == 0:
-            raise NoResultFound("No record found to delete.")
-        if not allow_multiple and total_count > 1:
-            raise MultipleResultsFound(
-                f"Expected exactly one record to delete, found {total_count}."
-            )
+        await validate_update_delete_operation(
+            self.count, db, allow_multiple, "delete", **combined_filters
+        )
 
-        parsed_filters = self._parse_filters(**combined_filters)
+        parsed_filters = self._filter_processor.parse_filters(**combined_filters)
 
         update_values: dict[str, Union[bool, datetime]] = {}
         if self.deleted_at_column in self.model_col_names:
