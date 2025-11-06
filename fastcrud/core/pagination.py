@@ -1,10 +1,79 @@
-from typing import Generic, TypeVar, Optional, Type
+"""
+Pagination utilities for FastCRUD.
+
+This module consolidates all pagination-related functionality including:
+- Pagination parameter schemas
+- Pagination response formatting
+- Offset calculation helpers
+- Dynamic response model creation
+"""
+
+from typing import Generic, TypeVar, Optional, Type, Any
 
 from pydantic import BaseModel, create_model, Field
 
 SchemaType = TypeVar("SchemaType", bound=BaseModel)
 
 
+# ------------- Helper Functions -------------
+def compute_offset(page: int, items_per_page: int) -> int:
+    """Calculate the offset for pagination based on the given page number and items per page.
+
+    The offset represents the starting point in a dataset for the items on a given page.
+    For example, if each page displays 10 items and you want to display page 3, the offset will be 20,
+    meaning the display should start with the 21st item.
+
+    Args:
+        page: The current page number. Page numbers should start from 1.
+        items_per_page: The number of items to be displayed on each page.
+
+    Returns:
+        The calculated offset.
+
+    Examples:
+        >>> compute_offset(1, 10)
+        0
+        >>> compute_offset(3, 10)
+        20
+    """
+    return (page - 1) * items_per_page
+
+
+def paginated_response(
+    crud_data: dict,
+    page: int,
+    items_per_page: int,
+    multi_response_key: str = "data",
+) -> dict[str, Any]:
+    """Create a paginated response based on the provided data and pagination parameters.
+
+    Args:
+        crud_data: Data to be paginated, including the list of items and total count.
+        page: Current page number.
+        items_per_page: Number of items per page.
+        multi_response_key: Key to use for the items list in the response (defaults to "data").
+
+    Returns:
+        A structured paginated response dict containing the list of items, total count, pagination flags, and numbers.
+
+    Note:
+        The function does not actually paginate the data but formats the response to indicate pagination metadata.
+    """
+    items = crud_data.get(multi_response_key, [])
+    total_count = crud_data.get("total_count", 0)
+
+    response = {
+        multi_response_key: items,
+        "total_count": total_count,
+        "has_more": (page * items_per_page) < total_count,
+        "page": page,
+        "items_per_page": items_per_page,
+    }
+
+    return response
+
+
+# ------------- Request Query Schemas -------------
 class PaginatedRequestQuery(BaseModel):
     """
     Pydantic model for paginated query parameters.
@@ -102,6 +171,7 @@ class CursorPaginatedRequestQuery(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+# ------------- Response Schema Factories -------------
 def create_list_response(
     schema: Type[SchemaType], response_key: str = "data"
 ) -> Type[BaseModel]:
@@ -123,6 +193,7 @@ def create_paginated_response(
     return create_model("DynamicPaginatedResponse", **fields)  # type: ignore
 
 
+# ------------- Response Schema Classes -------------
 class ListResponse(BaseModel, Generic[SchemaType]):
     data: list[SchemaType]
 

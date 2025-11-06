@@ -46,39 +46,55 @@
 - **Cursor-based Pagination**: Implements efficient pagination for large datasets, ideal for infinite scrolling interfaces.
 - **Modular and Extensible**: Designed for easy extension and customization to fit your requirements.
 - **Auto-generated Endpoints**: Streamlines the process of adding CRUD endpoints with custom dependencies and configurations.
+- **Clean Architecture**: Built with a six-level dependency hierarchy that prevents circular dependencies and supports future extensibility.
 
-## Minimal Example
+## Quick Start
 
-Assuming you have your model, schemas and database connection:
+!!! info "Using SQLModel?"
+    Since SQLModel combines SQLAlchemy and Pydantic, you can replace the separate model and schema definitions below with SQLModel classes. Wherever you see SQLAlchemy models or Pydantic schemas in the documentation, just use SQLModel instead - it works seamlessly with FastCRUD.
 
-```python
-# imports here
+### 1. Define Your Model and Schema
 
-# define your model
+```python title="models.py"
+import datetime
+from sqlalchemy import Column, DateTime, Integer, Numeric, String, func
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from pydantic import BaseModel
+
+class Base(DeclarativeBase):
+    pass
+
+# SQLAlchemy Model
 --8<--
 fastcrud/examples/item/model.py:model
 --8<--
 
-# your schemas
+# Pydantic Schema
 --8<--
 fastcrud/examples/item/schemas.py:itemschema
 --8<--
 
-# database connection
+# Database connection
 DATABASE_URL = "sqlite+aiosqlite:///./test.db"
 engine = create_async_engine(DATABASE_URL, echo=True)
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 ```
 
-Use `crud_router` and include it in your `FastAPI` application
+### 2. Set Up FastAPI with FastCRUD
 
-```python
+```python title="main.py"
+from typing import AsyncGenerator
+from fastapi import FastAPI
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastcrud import crud_router
 
+# Database session dependency
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with async_session() as session:
         yield session
 
+# Create tables before app start
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -87,6 +103,7 @@ async def lifespan(app: FastAPI):
 # FastAPI app
 app = FastAPI(lifespan=lifespan)
 
+# Create CRUD router
 item_router = crud_router(
     session=get_session,
     model=Item,
@@ -99,7 +116,9 @@ item_router = crud_router(
 app.include_router(item_router)
 ```
 
-And it's all done, just go to `/docs` and the crud endpoints are created.
+### 3. That's It!
+
+Start your FastAPI application and visit `/docs` - your CRUD endpoints are automatically created and documented!
 
 ## Requirements
 
@@ -238,3 +257,11 @@ async def read_item(item_id: int, db: AsyncSession = Depends(get_session)):
 ## License
 
 [`MIT`](community/LICENSE.md)
+
+---
+
+<div style="text-align: center; margin-top: 50px;">
+    <a href="why-fastcrud/" class="md-button md-button--primary">
+        Why Choose FastCRUD? →
+    </a>
+</div>

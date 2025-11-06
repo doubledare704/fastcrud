@@ -10,10 +10,10 @@ from sqlalchemy import column
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core import format_single_response, format_multi_response
+from ..core.protocols import CRUDInstance
 
 if TYPE_CHECKING:
     from ..types import SelectSchemaType, GetMultiResponseModel, GetMultiResponseDict
-    from .fast_crud import FastCRUD
 
 
 async def execute_update_and_return_response(
@@ -68,7 +68,7 @@ async def execute_update_and_return_response(
 
 
 async def handle_joined_filters_delegation(
-    crud_instance: "FastCRUD",
+    crud_instance: CRUDInstance,
     joined_filters_info: dict[str, Any],
     db: AsyncSession,
     offset: int,

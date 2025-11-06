@@ -89,8 +89,6 @@ class ModelInspector:
         Returns:
             Sequence of primary key Column objects.
         """
-        from typing import cast
-
         return cast(Sequence[Column], self.inspector.mapper.primary_key)
 
     @property

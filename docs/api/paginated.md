@@ -13,25 +13,13 @@
 
 `paginated` is a utility module for offset pagination related functions. The functionality has been moved to the core module for better organization.
 
-## Core Pagination Modules
+## Core Pagination Module
 
-The pagination utilities are now organized in the core module:
+The pagination utilities are now consolidated in a single core module:
 
-### Pagination Schemas
+### Pagination Module
 
-::: fastcrud.core.pagination.schemas
-    rendering:
-      show_if_no_docstring: true
-
-### Pagination Response Utilities
-
-::: fastcrud.core.pagination.response
-    rendering:
-      show_if_no_docstring: true
-
-### Pagination Helpers
-
-::: fastcrud.core.pagination.helper
+::: fastcrud.core.pagination
     rendering:
       show_if_no_docstring: true
 

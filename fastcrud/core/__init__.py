@@ -12,6 +12,16 @@ The core module is designed with performance in mind, using strategic caching
 to avoid repeated expensive operations while maintaining clean, functional APIs.
 """
 
+from .protocols import (
+    CRUDInstance,
+    ModelIntrospector,
+    DataProcessor,
+    FilterProcessor as FilterProcessorProtocol,
+    QueryBuilder,
+    ResponseFormatter,
+    DatabaseAdapter,
+    ValidationProcessor,
+)
 from .introspection import ModelInspector, get_model_inspector
 from .join_processing import JoinProcessor, handle_null_primary_key_multi_join
 from .filtering import FilterProcessor, get_sqlalchemy_filter
@@ -35,25 +45,32 @@ from .introspection import (
     get_model_column,
 )
 
-# Data processing
-from .data_processing import (
-    nest_join_data,
-    sort_nested_list,
+# Data processing module (organized by dependency level)
+from .data import (
+    # Data transformation functions (Level 2: pure functions)
     handle_one_to_one,
     handle_one_to_many,
-    convert_to_pydantic_models,
+    sort_nested_list,
     build_column_label,
     format_single_response,
     format_multi_response,
     create_paginated_response_data,
+    convert_to_pydantic_models,
+    # Data nesting functions (Level 3: uses introspection)
+    nest_join_data,
+    get_nested_key_for_join,
+    process_joined_field,
+    process_data_fields,
+    cleanup_null_joins,
+    # Response formatting functions (Level 4: uses join_processing)
     process_joined_data,
     format_joined_response,
 )
 
 # Pagination
-from .pagination.helper import compute_offset
-from .pagination.response import paginated_response
-from .pagination.schemas import (
+from .pagination import (
+    compute_offset,
+    paginated_response,
     PaginatedListResponse,
     ListResponse,
     PaginatedRequestQuery,
@@ -65,12 +82,16 @@ from .pagination.schemas import (
 # Field and schema management
 from .field_management import (
     create_modified_schema,
+    extract_matching_columns_from_schema,
+    auto_detect_join_condition,
+)
+
+# FastAPI-specific utilities
+from ..fastapi_dependencies import (
     create_auto_field_injector,
     create_dynamic_filters,
-    extract_matching_columns_from_schema,
     inject_dependencies,
     apply_model_pk,
-    auto_detect_join_condition,
 )
 
 # Configuration
@@ -86,6 +107,15 @@ from .config import (
 )
 
 __all__ = [
+    # Protocol interfaces
+    "CRUDInstance",
+    "ModelIntrospector",
+    "DataProcessor",
+    "FilterProcessorProtocol",
+    "QueryBuilder",
+    "ResponseFormatter",
+    "DatabaseAdapter",
+    "ValidationProcessor",
     # Core classes
     "ModelInspector",
     "get_model_inspector",
@@ -110,16 +140,22 @@ __all__ = [
     "create_composite_key",
     "validate_model_has_table",
     "get_model_column",
-    # Data processing functions
-    "nest_join_data",
-    "sort_nested_list",
+    # Data transformation functions
     "handle_one_to_one",
     "handle_one_to_many",
-    "convert_to_pydantic_models",
+    "sort_nested_list",
     "build_column_label",
     "format_single_response",
     "format_multi_response",
     "create_paginated_response_data",
+    "convert_to_pydantic_models",
+    # Data nesting functions
+    "nest_join_data",
+    "get_nested_key_for_join",
+    "process_joined_field",
+    "process_data_fields",
+    "cleanup_null_joins",
+    # Response formatting functions
     "process_joined_data",
     "format_joined_response",
     # Pagination utilities
