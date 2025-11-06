@@ -43,9 +43,7 @@ plugins:
 
 nav:
   - FastCRUD: index.md
-  - Installing: installing.md
-  - Quick-Start: quick-start.md
-  - Using SQLModel: sqlmodel.md
+  - Why FastCRUD?: why-fastcrud.md
   - Usage:
       - Overview: usage/overview.md
       - Automatic Endpoints: usage/endpoint.md
@@ -67,8 +65,10 @@ nav:
   - Showcase: showcase.md
   - Community:
       - Overview: community/overview.md
-      - Discord Community: community.md
+      - Architecture: community/architecture.md
       - Contributing: community/CONTRIBUTING.md
+      - Discord Community: community.md
+      - CONTRIBUTING: community/CONTRIBUTING.md
       - Showcase Submission: community/showcase_submission.md
       - Code of Conduct: community/CODE_OF_CONDUCT.md
       - License: community/LICENSE.md
@@ -86,7 +86,13 @@ markdown_extensions:
       pygments_lang_class: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
 
 repo_name: igorbenav/fastcrud
 repo_url: https://github.com/igorbenav/fastcrud

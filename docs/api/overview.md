@@ -29,6 +29,10 @@ Our application's API is comprised of several key components, each serving a spe
 
 Each component is documented with its own dedicated page, where you can find detailed information about its methods, parameters, return types, and usage examples. These pages are designed to provide you with all the information you need to understand and work with our API effectively.
 
+## Architecture
+
+For a deeper understanding of how these components fit together, see our [Architecture Documentation](../community/architecture.md). This explains FastCRUD's six-level dependency hierarchy, design principles, and how the modules are organized.
+
 ## Contribution
 
 If you wish to contribute to the development of our API, please refer to our [Contributing Guidelines](../community/CONTRIBUTING.md). We welcome contributions of all forms, from bug fixes to feature development.
