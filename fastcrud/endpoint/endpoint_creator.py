@@ -12,6 +12,7 @@ from ..core import (
     PaginatedListResponse,
     PaginatedRequestQuery,
 )
+from ..core.filtering.operators import SUPPORTED_FILTERS
 from fastcrud.types import (
     CreateSchemaType,
     DeleteSchemaType,
@@ -333,7 +334,7 @@ class EndpointCreator:
 
     def _validate_filter_config(self, filter_config: FilterConfig) -> None:
         model_columns = self.crud.model_col_names
-        supported_filters = self.crud._SUPPORTED_FILTERS
+        supported_filters = SUPPORTED_FILTERS
         for key, value in filter_config.filters.items():
             if callable(value):
                 continue

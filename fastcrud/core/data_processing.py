@@ -8,9 +8,11 @@ data manipulation without expensive operations.
 
 from typing import Any, Optional, Union, TYPE_CHECKING, Callable
 from ..types import SelectSchemaType
+from .introspection import get_primary_key_names
 
 if TYPE_CHECKING:
     from .config import JoinConfig
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def handle_one_to_one(
@@ -592,3 +594,313 @@ def convert_to_pydantic_models(
 
         converted_data.append(schema_to_select(**item))
     return converted_data
+
+
+def format_single_response(
+    data: Any, schema_to_select: Optional[type] = None, return_as_model: bool = False
+) -> Union[dict, Any]:
+    """
+    Format single record response with optional model conversion.
+
+    Port of FastCRUD._as_single_response logic.
+
+    Args:
+        data: Raw data from database query result
+        schema_to_select: Pydantic schema for model conversion
+        return_as_model: Whether to convert to Pydantic model
+
+    Returns:
+        Formatted single record (dict or Pydantic model)
+
+    Raises:
+        ValueError: If schema_to_select required but not provided
+    """
+    if not return_as_model:
+        return data
+
+    if not schema_to_select:
+        raise ValueError(
+            "schema_to_select must be provided when return_as_model is True."
+        )
+
+    return schema_to_select(**data)
+
+
+def format_multi_response(
+    data: list[Any],
+    schema_to_select: Optional[type] = None,
+    return_as_model: bool = False,
+) -> list[Any]:
+    """
+    Format multiple records response with optional model conversion.
+
+    Port of FastCRUD._as_multi_response logic.
+
+    Args:
+        data: List of raw data from database query results
+        schema_to_select: Pydantic schema for model conversion
+        return_as_model: Whether to convert to Pydantic models
+
+    Returns:
+        List of formatted records (dicts or Pydantic models)
+
+    Raises:
+        ValueError: If schema_to_select required but not provided
+        ValidationError: If data validation fails during model conversion
+    """
+    if not return_as_model:
+        return data
+
+    if not schema_to_select:
+        raise ValueError(
+            "schema_to_select must be provided when return_as_model is True"
+        )
+
+    try:
+        converted_data = []
+        for row in data:
+            if isinstance(row, dict):
+                converted_data.append(schema_to_select(**row))
+            else:
+                converted_data.append(row)
+        return converted_data
+    except Exception as e:
+        raise ValueError(
+            f"Data validation error for schema {schema_to_select.__name__}: {e}"
+        )
+
+
+def create_paginated_response_data(
+    items: list,
+    total_count: int,
+    offset: int = 0,
+    limit: Optional[int] = None,
+    data_key: str = "data",
+) -> dict[str, Any]:
+    """
+    Create paginated response data structure.
+
+    Combines items with pagination metadata in a standardized format.
+
+    Args:
+        items: List of data items to include in response
+        total_count: Total number of items available (for pagination)
+        offset: Number of items skipped (default: 0)
+        limit: Maximum number of items per page (default: None - no limit)
+        data_key: Key name for the data items (default: "data")
+
+    Returns:
+        Dictionary containing items and pagination metadata
+
+    Example:
+        >>> create_paginated_response_data([item1, item2], 50, 20, 10)
+        {
+            "data": [item1, item2],
+            "total_count": 50,
+            "has_more": True,
+            "offset": 20,
+            "limit": 10
+        }
+
+    """
+    response = {
+        data_key: items,
+        "total_count": total_count,
+    }
+
+    if limit is not None:
+        response["has_more"] = (offset + len(items)) < total_count
+        response["offset"] = offset
+        response["limit"] = limit
+
+    return response
+
+
+def process_joined_data(
+    data_list: list[dict],
+    join_definitions: list["JoinConfig"],
+    nest_joins: bool,
+    primary_model: Any,
+) -> Optional[dict[str, Any]]:
+    """
+    Process joined data using core utilities for nesting and relationships.
+
+    Args:
+        data_list: List of flat dictionaries containing joined data
+        join_definitions: List of join configurations
+        nest_joins: Whether to nest the joined data
+        primary_model: Primary SQLAlchemy model class
+
+    Returns:
+        Processed nested data dictionary or None if no data
+    """
+    if not data_list:
+        return None
+
+    if not nest_joins:
+        return data_list[0]
+
+    one_to_many_count = sum(
+        1 for join in join_definitions if join.relationship_type == "one-to-many"
+    )
+
+    if one_to_many_count > 1:
+        pre_nested_data = []
+        for row_data in data_list:
+            nested_row = nest_join_data(
+                data=row_data,
+                join_definitions=join_definitions,
+                get_primary_key_func=lambda model: get_primary_key_names(model)[0],
+            )
+            pre_nested_data.append(nested_row)
+
+        from .join_processing import JoinProcessor
+
+        processor = JoinProcessor(primary_model)
+        nested_results = processor.process_multi_join(
+            data=pre_nested_data,
+            joins_config=join_definitions,
+            return_as_model=False,
+            schema_to_select=None,
+            nested_schema_to_select={
+                (
+                    join.join_prefix.rstrip("_")
+                    if join.join_prefix
+                    else join.model.__tablename__
+                ): join.schema_to_select
+                for join in join_definitions
+                if join.schema_to_select
+            },
+        )
+        return dict(nested_results[0]) if nested_results else {}
+    else:
+        nested_data: dict = {}
+        for data in data_list:
+            nested_data = nest_join_data(
+                data,
+                join_definitions,
+                lambda model: get_primary_key_names(model)[0],
+                nested_data=nested_data,
+            )
+        return nested_data
+
+
+async def format_joined_response(
+    primary_model: Any,
+    raw_data: list[dict],
+    config: dict[str, Any],
+    schema_to_select: Optional[type[SelectSchemaType]] = None,
+    return_as_model: bool = False,
+    nest_joins: bool = False,
+    return_total_count: bool = True,
+    db: Optional["AsyncSession"] = None,
+    nested_schema_to_select: Optional[dict[str, type[SelectSchemaType]]] = None,
+    count_func: Optional[Callable] = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """
+    Format response using core utilities.
+
+    Args:
+        primary_model: Primary SQLAlchemy model class
+        raw_data: Raw query results
+        config: Configuration dictionary with join_definitions
+        schema_to_select: Pydantic schema for response formatting
+        return_as_model: Whether to return as Pydantic model
+        nest_joins: Whether joins are nested
+        return_total_count: Whether to include total count
+        db: Database session (for count queries)
+        nested_schema_to_select: Schemas for nested data
+        count_func: Function to get total count
+        **kwargs: Additional filter parameters
+
+    Returns:
+        Formatted response dictionary
+    """
+    from typing import cast
+
+    join_definitions = config["join_definitions"]
+
+    processed_data = []
+    for row_dict in raw_data:
+        if nest_joins:
+            row_dict = nest_join_data(
+                data=row_dict,
+                join_definitions=join_definitions,
+                get_primary_key_func=lambda model: get_primary_key_names(model)[0],
+            )
+        processed_data.append(row_dict)
+
+    nested_data: list[Union[dict[str, Any], SelectSchemaType]]
+    if nest_joins and any(
+        join.relationship_type == "one-to-many" for join in join_definitions
+    ):
+        from .join_processing import JoinProcessor
+
+        processor = JoinProcessor(primary_model)
+        nested_result = processor.process_multi_join(
+            data=processed_data,
+            joins_config=join_definitions,
+            return_as_model=return_as_model,
+            schema_to_select=schema_to_select if return_as_model else None,
+            nested_schema_to_select=nested_schema_to_select
+            or {
+                (
+                    join.join_prefix.rstrip("_")
+                    if join.join_prefix
+                    else join.model.__tablename__
+                ): join.schema_to_select
+                for join in join_definitions
+                if join.schema_to_select
+            },
+        )
+        nested_data = list(nested_result)
+    else:
+        from .join_processing import handle_null_primary_key_multi_join
+
+        nested_data = handle_null_primary_key_multi_join(
+            cast(list[Union[dict[str, Any], SelectSchemaType]], processed_data),
+            join_definitions,
+        )
+
+    formatted_data: list[Any] = format_multi_response(
+        nested_data, schema_to_select, return_as_model
+    )
+    response: dict[str, Any] = {"data": formatted_data}
+
+    if return_total_count and db and count_func:
+        distinct_on_primary = bool(
+            nest_joins
+            and any(j.relationship_type == "one-to-many" for j in join_definitions)
+        )
+        non_filter_params = {
+            "schema_to_select",
+            "join_model",
+            "join_on",
+            "join_prefix",
+            "join_schema_to_select",
+            "join_type",
+            "alias",
+            "join_filters",
+            "nest_joins",
+            "offset",
+            "limit",
+            "sort_columns",
+            "sort_orders",
+            "return_as_model",
+            "joins_config",
+            "counts_config",
+            "return_total_count",
+            "relationship_type",
+            "nested_schema_to_select",
+        }
+        filter_kwargs = {k: v for k, v in kwargs.items() if k not in non_filter_params}
+        total_count: int = await count_func(
+            db=db,
+            joins_config=join_definitions,
+            distinct_on_primary=distinct_on_primary,
+            **filter_kwargs,
+        )
+        response["total_count"] = total_count
+
+    return response

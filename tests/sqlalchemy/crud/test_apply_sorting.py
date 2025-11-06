@@ -12,7 +12,7 @@ async def test_apply_sorting_single_column_asc(async_session, test_model, test_d
 
     crud = FastCRUD(test_model)
     stmt = select(test_model)
-    sorted_stmt = crud._apply_sorting(stmt, "name")
+    sorted_stmt = crud._query_builder.apply_sorting(stmt, "name")
 
     result = await async_session.execute(sorted_stmt)
     sorted_data = result.scalars().all()
@@ -29,7 +29,7 @@ async def test_apply_sorting_single_column_desc(async_session, test_model, test_
 
     crud = FastCRUD(test_model)
     stmt = select(test_model)
-    sorted_stmt = crud._apply_sorting(stmt, "name", "desc")
+    sorted_stmt = crud._query_builder.apply_sorting(stmt, "name", "desc")
 
     result = await async_session.execute(sorted_stmt)
     sorted_data = result.scalars().all()
@@ -50,7 +50,9 @@ async def test_apply_sorting_multiple_columns_mixed_order(
 
     crud = FastCRUD(test_model)
     stmt = select(test_model)
-    sorted_stmt = crud._apply_sorting(stmt, ["name", "id"], ["asc", "desc"])
+    sorted_stmt = crud._query_builder.apply_sorting(
+        stmt, ["name", "id"], ["asc", "desc"]
+    )
 
     result = await async_session.execute(sorted_stmt)
     sorted_data = result.scalars().all()
@@ -70,7 +72,7 @@ async def test_apply_sorting_invalid_column(async_session, test_model, test_data
     stmt = select(test_model)
 
     with pytest.raises(ArgumentError):
-        crud._apply_sorting(stmt, "invalid_column")
+        crud._query_builder.apply_sorting(stmt, "invalid_column")
 
 
 @pytest.mark.asyncio
@@ -83,7 +85,7 @@ async def test_apply_sorting_invalid_sort_order(async_session, test_model, test_
     stmt = select(test_model)
 
     with pytest.raises(ValueError):
-        crud._apply_sorting(stmt, "name", "invalid_order")
+        crud._query_builder.apply_sorting(stmt, "name", "invalid_order")
 
 
 @pytest.mark.asyncio
@@ -96,7 +98,7 @@ async def test_apply_sorting_mismatched_lengths(async_session, test_model, test_
     stmt = select(test_model)
 
     with pytest.raises(ValueError):
-        crud._apply_sorting(stmt, ["name", "id"], ["asc"])
+        crud._query_builder.apply_sorting(stmt, ["name", "id"], ["asc"])
 
 
 @pytest.mark.asyncio
@@ -105,7 +107,7 @@ async def test_apply_sorting_sort_orders_without_columns(async_session, test_mod
     stmt = select(test_model)
 
     with pytest.raises(ValueError) as exc_info:
-        crud._apply_sorting(stmt, None, ["asc"])
+        crud._query_builder.apply_sorting(stmt, None, ["asc"])
 
     assert (
         str(exc_info.value)

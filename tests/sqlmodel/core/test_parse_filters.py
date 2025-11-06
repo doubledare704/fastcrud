@@ -6,7 +6,7 @@ from fastcrud import FastCRUD
 async def test_parse_filters_single_condition(test_model):
     fast_crud = FastCRUD(test_model)
 
-    filters = fast_crud._parse_filters(name="John Doe")
+    filters = fast_crud._filter_processor.parse_filters(name="John Doe")
     assert len(filters) == 1
     assert str(filters[0]) == "test.name = :name_1"
 
@@ -15,7 +15,7 @@ async def test_parse_filters_single_condition(test_model):
 async def test_parse_filters_multiple_conditions(test_model):
     fast_crud = FastCRUD(test_model)
 
-    filters = fast_crud._parse_filters(tier_id__gt=1, is_deleted=True)
+    filters = fast_crud._filter_processor.parse_filters(tier_id__gt=1, is_deleted=True)
     assert len(filters) == 2
     assert str(filters[0]).endswith("tier_id > :tier_id_1")
     assert str(filters[1]) == "test.is_deleted = true"
@@ -25,7 +25,7 @@ async def test_parse_filters_multiple_conditions(test_model):
 async def test_parse_filters_or_condition(test_model):
     fast_crud = FastCRUD(test_model)
 
-    filters = fast_crud._parse_filters(name__or={"gt": 1, "lt": 5})
+    filters = fast_crud._filter_processor.parse_filters(name__or={"gt": 1, "lt": 5})
     assert len(filters) == 1
     assert str(filters[0]) == "test.name > :name_1 OR test.name < :name_2"
 
@@ -33,7 +33,7 @@ async def test_parse_filters_or_condition(test_model):
 @pytest.mark.asyncio
 async def test_parse_filters_contained_in(test_model):
     fast_crud = FastCRUD(test_model)
-    filters = fast_crud._parse_filters(category_id__in=[1, 2])
+    filters = fast_crud._filter_processor.parse_filters(category_id__in=[1, 2])
     assert len(filters) == 1
     assert str(filters[0]) == "test.category_id IN (__[POSTCOMPILE_category_id_1])"
 
@@ -41,7 +41,7 @@ async def test_parse_filters_contained_in(test_model):
 @pytest.mark.asyncio
 async def test_parse_filters_not_contained_in(test_model):
     fast_crud = FastCRUD(test_model)
-    filters = fast_crud._parse_filters(category_id__not_in=[1, 2])
+    filters = fast_crud._filter_processor.parse_filters(category_id__not_in=[1, 2])
     assert len(filters) == 1
     assert (
         str(filters[0]) == "(test.category_id NOT IN (__[POSTCOMPILE_category_id_1]))"
@@ -51,7 +51,7 @@ async def test_parse_filters_not_contained_in(test_model):
 @pytest.mark.asyncio
 async def test_parse_filters_between_condition(test_model):
     fast_crud = FastCRUD(test_model)
-    filters = fast_crud._parse_filters(category_id__between=[1, 5])
+    filters = fast_crud._filter_processor.parse_filters(category_id__between=[1, 5])
     assert len(filters) == 1
     assert (
         str(filters[0]) == "test.category_id BETWEEN :category_id_1 AND :category_id_2"
@@ -64,11 +64,11 @@ async def test_parse_filters_raises_exception(test_model, operator: str):
     fast_crud = FastCRUD(test_model)
     with pytest.raises(ValueError) as exc:
         if operator == "in":
-            fast_crud._parse_filters(category_id__in=1)
+            fast_crud._filter_processor.parse_filters(category_id__in=1)
         elif operator == "not_in":
-            fast_crud._parse_filters(category_id__not_in=1)
+            fast_crud._filter_processor.parse_filters(category_id__not_in=1)
         elif operator == "between":
-            fast_crud._parse_filters(category_id__between=1)
+            fast_crud._filter_processor.parse_filters(category_id__between=1)
     assert str(exc.value) == f"<{operator}> filter must be tuple, list or set"
 
 
@@ -77,22 +77,26 @@ async def test_parse_filters_invalid_column(test_model):
     fast_crud = FastCRUD(test_model)
 
     with pytest.raises(ValueError):
-        fast_crud._parse_filters(invalid_column__="This does not exist")
+        fast_crud._filter_processor.parse_filters(
+            invalid_column__="This does not exist"
+        )
 
 
 @pytest.mark.asyncio
 async def test_parse_filters_with_custom_column_names(test_model_custom_columns):
     fast_crud = FastCRUD(test_model_custom_columns)
 
-    filters = fast_crud._parse_filters(meta={"key": "value"})
+    filters = fast_crud._filter_processor.parse_filters(meta={"key": "value"})
     assert len(filters) == 1
     assert "test_custom.metadata =" in str(filters[0])
 
-    filters = fast_crud._parse_filters(name__like="John%")
+    filters = fast_crud._filter_processor.parse_filters(name__like="John%")
     assert len(filters) == 1
     assert "test_custom.display_name LIKE" in str(filters[0])
 
-    filters = fast_crud._parse_filters(meta__contains={"key": "value"}, name="John")
+    filters = fast_crud._filter_processor.parse_filters(
+        meta__contains={"key": "value"}, name="John"
+    )
     assert len(filters) == 2
     filter_str = [str(f) for f in filters]
     print(filter_str)

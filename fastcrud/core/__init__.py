@@ -14,6 +14,14 @@ to avoid repeated expensive operations while maintaining clean, functional APIs.
 
 from .introspection import ModelInspector, get_model_inspector
 from .join_processing import JoinProcessor, handle_null_primary_key_multi_join
+from .filtering import FilterProcessor, get_sqlalchemy_filter
+from .query import (
+    SQLQueryBuilder,
+    SortProcessor,
+    JoinBuilder,
+    build_joined_query,
+    execute_joined_query,
+)
 
 from .introspection import (
     get_primary_key_names,
@@ -24,6 +32,7 @@ from .introspection import (
     get_column_types,
     create_composite_key,
     validate_model_has_table,
+    get_model_column,
 )
 
 # Data processing
@@ -34,6 +43,11 @@ from .data_processing import (
     handle_one_to_many,
     convert_to_pydantic_models,
     build_column_label,
+    format_single_response,
+    format_multi_response,
+    create_paginated_response_data,
+    process_joined_data,
+    format_joined_response,
 )
 
 # Pagination
@@ -77,6 +91,15 @@ __all__ = [
     "get_model_inspector",
     "JoinProcessor",
     "handle_null_primary_key_multi_join",
+    # Filtering engine
+    "FilterProcessor",
+    "get_sqlalchemy_filter",
+    # Query building engine
+    "SQLQueryBuilder",
+    "SortProcessor",
+    "JoinBuilder",
+    "build_joined_query",
+    "execute_joined_query",
     # Introspection functions
     "get_primary_key_names",
     "get_primary_key_columns",
@@ -86,6 +109,7 @@ __all__ = [
     "get_column_types",
     "create_composite_key",
     "validate_model_has_table",
+    "get_model_column",
     # Data processing functions
     "nest_join_data",
     "sort_nested_list",
@@ -93,6 +117,11 @@ __all__ = [
     "handle_one_to_many",
     "convert_to_pydantic_models",
     "build_column_label",
+    "format_single_response",
+    "format_multi_response",
+    "create_paginated_response_data",
+    "process_joined_data",
+    "format_joined_response",
     # Pagination utilities
     "compute_offset",
     "paginated_response",
