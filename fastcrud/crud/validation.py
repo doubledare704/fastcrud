@@ -49,7 +49,7 @@ async def validate_update_delete_operation(
     return total_count
 
 
-def validate_pagination_params(offset: int, limit: int | None) -> None:
+def validate_pagination_params(offset: int, limit: Optional[int]) -> None:
     """
     Validate pagination parameters.
 
