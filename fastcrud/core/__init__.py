@@ -12,6 +12,16 @@ The core module is designed with performance in mind, using strategic caching
 to avoid repeated expensive operations while maintaining clean, functional APIs.
 """
 
+from .protocols import (
+    CRUDInstance,
+    ModelIntrospector,
+    DataProcessor,
+    FilterProcessor as FilterProcessorProtocol,
+    QueryBuilder,
+    ResponseFormatter,
+    DatabaseAdapter,
+    ValidationProcessor,
+)
 from .introspection import ModelInspector, get_model_inspector
 from .join_processing import JoinProcessor, handle_null_primary_key_multi_join
 from .filtering import FilterProcessor, get_sqlalchemy_filter
@@ -65,12 +75,16 @@ from .pagination.schemas import (
 # Field and schema management
 from .field_management import (
     create_modified_schema,
+    extract_matching_columns_from_schema,
+    auto_detect_join_condition,
+)
+
+# FastAPI-specific utilities
+from ..fastapi_dependencies import (
     create_auto_field_injector,
     create_dynamic_filters,
-    extract_matching_columns_from_schema,
     inject_dependencies,
     apply_model_pk,
-    auto_detect_join_condition,
 )
 
 # Configuration
@@ -86,6 +100,15 @@ from .config import (
 )
 
 __all__ = [
+    # Protocol interfaces
+    "CRUDInstance",
+    "ModelIntrospector",
+    "DataProcessor",
+    "FilterProcessorProtocol",
+    "QueryBuilder",
+    "ResponseFormatter",
+    "DatabaseAdapter",
+    "ValidationProcessor",
     # Core classes
     "ModelInspector",
     "get_model_inspector",
