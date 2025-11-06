@@ -61,9 +61,9 @@ from .data_processing import (
 )
 
 # Pagination
-from .pagination.helper import compute_offset
-from .pagination.response import paginated_response
-from .pagination.schemas import (
+from .pagination import (
+    compute_offset,
+    paginated_response,
     PaginatedListResponse,
     ListResponse,
     PaginatedRequestQuery,
