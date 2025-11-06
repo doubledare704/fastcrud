@@ -14,6 +14,7 @@ from .sorting import SortProcessor
 from .joins import JoinBuilder
 from ...types import ModelType
 from ..introspection import get_primary_key_columns
+from ..field_management import extract_matching_columns_from_schema
 
 if TYPE_CHECKING:
     from ...types import SelectSchemaType
@@ -179,8 +180,6 @@ def build_joined_query(
     Returns:
         SQLAlchemy SELECT statement with joins and filters
     """
-    from ..field_management import extract_matching_columns_from_schema
-
     primary_select = extract_matching_columns_from_schema(
         model=model, schema=schema_to_select
     )

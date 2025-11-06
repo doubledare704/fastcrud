@@ -45,17 +45,24 @@ from .introspection import (
     get_model_column,
 )
 
-# Data processing
-from .data_processing import (
-    nest_join_data,
-    sort_nested_list,
+# Data processing module (organized by dependency level)
+from .data import (
+    # Data transformation functions (Level 2: pure functions)
     handle_one_to_one,
     handle_one_to_many,
-    convert_to_pydantic_models,
+    sort_nested_list,
     build_column_label,
     format_single_response,
     format_multi_response,
     create_paginated_response_data,
+    convert_to_pydantic_models,
+    # Data nesting functions (Level 3: uses introspection)
+    nest_join_data,
+    get_nested_key_for_join,
+    process_joined_field,
+    process_data_fields,
+    cleanup_null_joins,
+    # Response formatting functions (Level 4: uses join_processing)
     process_joined_data,
     format_joined_response,
 )
@@ -133,16 +140,22 @@ __all__ = [
     "create_composite_key",
     "validate_model_has_table",
     "get_model_column",
-    # Data processing functions
-    "nest_join_data",
-    "sort_nested_list",
+    # Data transformation functions
     "handle_one_to_one",
     "handle_one_to_many",
-    "convert_to_pydantic_models",
+    "sort_nested_list",
     "build_column_label",
     "format_single_response",
     "format_multi_response",
     "create_paginated_response_data",
+    "convert_to_pydantic_models",
+    # Data nesting functions
+    "nest_join_data",
+    "get_nested_key_for_join",
+    "process_joined_field",
+    "process_data_fields",
+    "cleanup_null_joins",
+    # Response formatting functions
     "process_joined_data",
     "format_joined_response",
     # Pagination utilities

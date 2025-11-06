@@ -14,7 +14,7 @@ from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.util import AliasedClass
 
 from .introspection import validate_model_has_table
-from .data_processing import build_column_label
+from .data import build_column_label
 from ..types import ModelType, SelectSchemaType
 
 from typing import TYPE_CHECKING
