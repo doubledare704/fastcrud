@@ -5,7 +5,7 @@ This module provides validation functions for filter keys, operators, and values
 to ensure they conform to expected formats and constraints.
 """
 
-from typing import Any
+from ...types import FilterValueType
 
 
 def validate_joined_filter_format(filter_key: str) -> None:
@@ -38,7 +38,7 @@ def validate_joined_filter_format(filter_key: str) -> None:
         raise ValueError(f"Invalid filter key format (consecutive dots): {filter_key}")
 
 
-def validate_filter_operator(operator: str, value: Any) -> None:
+def validate_filter_operator(operator: str, value: FilterValueType) -> None:
     """
     Validate filter operator and value combination.
 
@@ -64,5 +64,9 @@ def validate_filter_operator(operator: str, value: Any) -> None:
     ):
         raise ValueError(f"Operator '{operator}' requires a list, tuple, or set value")
 
-    if operator == "between" and len(value) != 2:
+    if (
+        operator == "between"
+        and isinstance(value, (tuple, list, set))
+        and len(value) != 2
+    ):
         raise ValueError("Between operator requires exactly 2 values")

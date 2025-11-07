@@ -12,7 +12,7 @@ from sqlalchemy.orm.util import AliasedClass
 from sqlalchemy.sql.elements import ColumnElement
 
 from ..introspection import get_model_column
-from ...types import ModelType
+from ...types import ModelType, FilterValueType
 from .operators import get_sqlalchemy_filter
 from .validators import validate_joined_filter_format
 
@@ -111,7 +111,10 @@ class FilterProcessor:
         return filters
 
     def _handle_simple_filter(
-        self, model: Union[type[ModelType], AliasedClass], key: str, value: Any
+        self,
+        model: Union[type[ModelType], AliasedClass],
+        key: str,
+        value: FilterValueType,
     ) -> list[ColumnElement]:
         """
         Handle simple equality filters: field=value
@@ -216,7 +219,7 @@ class FilterProcessor:
         return [and_(*not_conditions)] if not_conditions else []
 
     def _handle_standard_filter(
-        self, col: Column, operator: str, value: Any
+        self, col: Column, operator: str, value: FilterValueType
     ) -> list[ColumnElement]:
         """
         Handle standard operator filters: field__gt=5
@@ -237,7 +240,10 @@ class FilterProcessor:
             raise ValueError(f"Unsupported filter operator: {operator}")
 
         if operator == "between":
-            return [filter_func(col)(*value)]
+            if isinstance(value, (tuple, list, set)):
+                return [filter_func(col)(*value)]
+            else:
+                raise ValueError("Between operator requires a sequence value")
         else:
             return [filter_func(col)(value)]
 
@@ -279,7 +285,9 @@ class FilterProcessor:
 
         return [or_(*or_conditions)] if or_conditions else []
 
-    def _handle_joined_filter(self, filter_key: str, value: Any) -> list[ColumnElement]:
+    def _handle_joined_filter(
+        self, filter_key: str, value: FilterValueType
+    ) -> list[ColumnElement]:
         """
         Handle joined model filters: user.company.name__eq='Acme'
 

@@ -5,7 +5,7 @@ This module contains execution logic for CRUD operations,
 including statement execution and response handling.
 """
 
-from typing import Any, Optional, Union, TYPE_CHECKING
+from typing import Any, Optional, Union, TYPE_CHECKING, cast
 from sqlalchemy import column
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -119,7 +119,9 @@ async def handle_joined_filters_delegation(
                 f"Invalid relationship '{relationship_name}' in model '{crud_instance.model.__name__}'"
             )
 
-        return await crud_instance.get_multi_joined(
+        result: Union[
+            "GetMultiResponseModel[SelectSchemaType]", "GetMultiResponseDict"
+        ] = await crud_instance.get_multi_joined(
             db=db,
             offset=offset,
             limit=limit,
@@ -131,6 +133,10 @@ async def handle_joined_filters_delegation(
             return_as_model=return_as_model,
             return_total_count=return_total_count,
             **regular_filters,
+        )
+        return cast(
+            Union["GetMultiResponseModel[SelectSchemaType]", "GetMultiResponseDict"],
+            result,
         )
     else:
         raise ValueError(

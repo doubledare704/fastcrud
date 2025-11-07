@@ -147,10 +147,29 @@ get(
 ```
 
 **Purpose**: To fetch a single record based on filters, with an option to select specific columns using a Pydantic schema.  
-**Usage Example**: Fetches the item with `item_id` as its `id`.
+**Return Types**:
+- When `return_as_model=True` and `schema_to_select` is provided: `Optional[SelectSchemaType]`
+- When `return_as_model=False`: `Optional[Dict[str, Any]]`
 
+**Usage Examples**: 
+
+Fetch item as dictionary:
 ```python
 item = await item_crud.get(db, id=item_id)
+# Returns: Optional[Dict[str, Any]]
+```
+
+Fetch item as typed Pydantic model:
+```python
+from .schemas import ReadItemSchema
+
+item = await item_crud.get(
+    db, 
+    schema_to_select=ReadItemSchema,
+    return_as_model=True,
+    id=item_id
+)
+# Returns: Optional[ReadItemSchema]
 ```
 
 ### 3. Exists
@@ -203,10 +222,30 @@ get_multi(
 ```
 
 **Purpose**: To fetch multiple records with optional sorting, pagination, and model conversion.  
-**Usage Example**: Fetches a subset of 5 items, starting from the 11th item in the database.
+**Return Types**:
+- When `return_as_model=True` and `schema_to_select` is provided: `GetMultiResponseModel[SelectSchemaType]` (i.e., `Dict[str, Union[List[SelectSchemaType], int]]`)
+- When `return_as_model=False`: `GetMultiResponseDict` (i.e., `Dict[str, Union[List[Dict[str, Any]], int]]`)
 
+**Usage Examples**: 
+
+Fetch items as dictionaries:
 ```python
 items = await item_crud.get_multi(db, offset=10, limit=5)
+# Returns: {"data": [Dict[str, Any], ...], "total_count": int}
+```
+
+Fetch items as typed Pydantic models:
+```python
+from .schemas import ReadItemSchema
+
+items = await item_crud.get_multi(
+    db, 
+    offset=10, 
+    limit=5,
+    schema_to_select=ReadItemSchema,
+    return_as_model=True
+)
+# Returns: {"data": [ReadItemSchema, ...], "total_count": int}
 ```
 
 ### 6. Update
@@ -226,14 +265,34 @@ update(
 ```
 
 **Purpose**: To update an existing record in the database.  
-**Usage Example**: Updates the description of the item with `item_id` as its `id`.
+**Return Types**:
+- When `return_as_model=True` and `schema_to_select` is provided: `Optional[SelectSchemaType]`
+- When `return_as_model=False`: `Optional[Dict[str, Any]]`
 
+**Usage Examples**: 
+
+Update and return as dictionary:
 ```python
-await item_crud.update(
+updated_item = await item_crud.update(
     db,
     UpdateItemSchema(description="Updated"),
     id=item_id,
 )
+# Returns: Optional[Dict[str, Any]]
+```
+
+Update and return as typed Pydantic model:
+```python
+from .schemas import ReadItemSchema, UpdateItemSchema
+
+updated_item = await item_crud.update(
+    db,
+    UpdateItemSchema(description="Updated"),
+    schema_to_select=ReadItemSchema,
+    return_as_model=True,
+    id=item_id,
+)
+# Returns: Optional[ReadItemSchema]
 ```
 
 ### 7. Delete
@@ -368,8 +427,13 @@ get_multi_joined(
 ```
 
 **Purpose**: Similar to `get_joined`, but for fetching multiple records.  
-**Usage Example**: Retrieves a paginated list of orders (up to 5), joined with the `Customer` table, using specified schemas for selective column retrieval from both tables.
+**Return Types**:
+- When `return_as_model=True` and `schema_to_select` is provided: `GetMultiResponseModel[SelectSchemaType]` (i.e., `Dict[str, Union[List[SelectSchemaType], int]]`)
+- When `return_as_model=False`: `GetMultiResponseDict` (i.e., `Dict[str, Union[List[Dict[str, Any]], int]]`)
 
+**Usage Examples**: 
+
+Fetch joined records as dictionaries:
 ```python
 orders = await order_crud.get_multi_joined(
     db,
@@ -379,6 +443,21 @@ orders = await order_crud.get_multi_joined(
     offset=0,
     limit=5,
 )
+# Returns: {"data": [Dict[str, Any], ...], "total_count": int}
+```
+
+Fetch joined records as typed Pydantic models:
+```python
+orders = await order_crud.get_multi_joined(
+    db,
+    schema_to_select=ReadOrderSchema,
+    join_model=Customer,
+    join_schema_to_select=ReadCustomerSchema,
+    return_as_model=True,
+    offset=0,
+    limit=5,
+)
+# Returns: {"data": [ReadOrderSchema, ...], "total_count": int}
 ```
 
 ### 4. Get Multi By Cursor
@@ -391,13 +470,19 @@ get_multi_by_cursor(
     schema_to_select: Optional[type[BaseModel]] = None,
     sort_column: str = "id",
     sort_order: str = "asc",
+    return_as_model: bool = False,
     **kwargs: Any,
 ) -> dict[str, Any]
 ```
 
 **Purpose**: Implements cursor-based pagination for efficient data retrieval in large datasets.  
-**Usage Example**: Fetches the next 10 items after the last cursor for efficient pagination, sorted by creation date in descending order.
+**Return Types**:
+- When `return_as_model=True` and `schema_to_select` is provided: `Dict[str, Union[List[SelectSchemaType], Any]]`
+- When `return_as_model=False`: `Dict[str, Union[List[Dict[str, Any]], Any]]`
 
+**Usage Examples**: 
+
+Cursor pagination with dictionaries:
 ```python
 paginated_items = await item_crud.get_multi_by_cursor(
     db,
@@ -406,6 +491,23 @@ paginated_items = await item_crud.get_multi_by_cursor(
     sort_column='created_at',
     sort_order='desc',
 )
+# Returns: {"data": [Dict[str, Any], ...], "next_cursor": Any}
+```
+
+Cursor pagination with typed Pydantic models:
+```python
+from .schemas import ReadItemSchema
+
+paginated_items = await item_crud.get_multi_by_cursor(
+    db,
+    cursor=last_cursor,
+    limit=10,
+    schema_to_select=ReadItemSchema,
+    return_as_model=True,
+    sort_column='created_at',
+    sort_order='desc',
+)
+# Returns: {"data": [ReadItemSchema, ...], "next_cursor": Any}
 ```
 
 ### 5. Select
