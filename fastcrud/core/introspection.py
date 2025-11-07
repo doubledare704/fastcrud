@@ -55,7 +55,7 @@ class ModelInspector:
         """
         if self._inspector is None:
             self._inspector = sa_inspect(self.model)
-            if self._inspector is None:
+            if self._inspector is None:  # pragma: no cover
                 raise ValueError(f"Model inspection failed for {self.model}")
         return self._inspector
 

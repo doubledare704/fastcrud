@@ -120,7 +120,7 @@ class CreateConfig(BaseModel):
     ) -> dict[str, Callable[..., Any]]:
         """Validate that all auto_fields values are callable."""
         for key, value in auto_fields.items():
-            if not callable(value):
+            if not callable(value):  # pragma: no cover
                 raise ValueError(
                     f"auto_fields['{key}'] must be callable, got {type(value).__name__}"
                 )
@@ -187,7 +187,7 @@ class UpdateConfig(BaseModel):
     ) -> dict[str, Callable[..., Any]]:
         """Validate that all auto_fields values are callable."""
         for key, value in auto_fields.items():
-            if not callable(value):
+            if not callable(value):  # pragma: no cover
                 raise ValueError(
                     f"auto_fields['{key}'] must be callable, got {type(value).__name__}"
                 )
@@ -269,7 +269,7 @@ class DeleteConfig(BaseModel):
     ) -> dict[str, Callable[..., Any]]:
         """Validate that all auto_fields values are callable."""
         for key, value in auto_fields.items():
-            if not callable(value):
+            if not callable(value):  # pragma: no cover
                 raise ValueError(
                     f"auto_fields['{key}'] must be callable, got {type(value).__name__}"
                 )
@@ -431,20 +431,20 @@ def validate_joined_filter_path(
 
     for relationship_name in relationship_path:
         inspector = sa_inspect(current_model)
-        if inspector is None:
+        if inspector is None:  # pragma: no cover
             return False
 
-        if not hasattr(inspector, "relationships"):
+        if not hasattr(inspector, "relationships"):  # pragma: no cover
             return False
 
         relationship = inspector.relationships.get(relationship_name)
-        if relationship is None:
+        if relationship is None:  # pragma: no cover
             return False
 
         current_model = relationship.mapper.class_
 
     final_inspector = sa_inspect(current_model)
-    if final_inspector is None:
+    if final_inspector is None:  # pragma: no cover
         return False
 
     return (

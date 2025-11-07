@@ -19,7 +19,7 @@ from .data import (
 )
 from ..types import ModelType, SelectSchemaType
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from .config import JoinConfig
 
 
