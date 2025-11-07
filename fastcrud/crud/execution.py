@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..core import format_single_response, format_multi_response
 from ..core.protocols import CRUDInstance
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ..types import SelectSchemaType, GetMultiResponseModel, GetMultiResponseDict
 
 

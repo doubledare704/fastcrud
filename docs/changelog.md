@@ -5,6 +5,124 @@
 The Changelog documents all notable changes made to FastCRUD. This includes new features, bug fixes, and improvements. It's organized by version and date, providing a clear history of the library's development.
 ___
 
+## [0.19.0] - Nov 7, 2025
+
+#### Added
+- **Complete Architectural Overhaul** by [@igorbenav](https://github.com/igorbenav)
+  - Six-layer protocol-based architecture replacing helper-based design
+  - 8 new Protocol interfaces eliminating circular dependencies and enabling clean testing
+  - 15+ specialized core modules with strategic caching and performance optimizations
+  - Enhanced type safety with method overloads and `return_as_model` parameter across 7 methods
+- **New Configuration Classes** by [@igorbenav](https://github.com/igorbenav)
+  - `CreateConfig`, `UpdateConfig`, `DeleteConfig` for server-side field injection and security
+  - Auto field injection with dependency support and schema exclusion capabilities
+  - All configuration classes available from main `fastcrud` import
+- **Enhanced Type System** by [@igorbenav](https://github.com/igorbenav)
+  - New precise types: `FilterValueType`, `FilterValue`, `FilterValueSequence`
+  - Response types: `GetMultiResponseDict`, `GetMultiResponseModel`, `UpsertMultiResponseDict`, `UpsertMultiResponseModel`
+  - Full type safety with proper type guards and isinstance checks
+
+#### Fixed
+- **Cartesian Product in Complex Joins** by [@igorbenav](https://github.com/igorbenav)
+  - Fixed duplicate results in `get_joined` with multiple one-to-many joins and `nest_joins=True`
+  - Enhanced join processing with proper deduplication for complex relationship scenarios
+
+#### Improved
+- **Performance Optimizations** by [@igorbenav](https://github.com/igorbenav)
+  - Instance-level caching for SQLAlchemy introspection operations
+  - Multi-level caching implementation for query building and schema modifications
+  - Pure function architecture patterns for data transformation
+- **Enhanced Import Structure** by [@igorbenav](https://github.com/igorbenav)
+  - All utilities now available from main `fastcrud` import
+  - Deprecated `fastcrud.paginated` module with proper warning system
+  - Centralized configuration and utility exports
+
+#### Breaking Changes
+⚠️ **None** - This release maintains full backward compatibility with 0.18.x
+
+#### Deprecated
+- **fastcrud.paginated Module** - Import pagination utilities directly from `fastcrud` instead
+
+#### What's Changed
+* Major refactor by [@igorbenav](https://github.com/igorbenav) in https://github.com/benavlabs/fastcrud/pull/275
+* Get joined fix by [@igorbenav](https://github.com/igorbenav) in https://github.com/benavlabs/fastcrud/pull/276  
+* FastCRUD refactor by [@igorbenav](https://github.com/igorbenav) in https://github.com/benavlabs/fastcrud/pull/277
+* Architecture refactor by [@igorbenav](https://github.com/igorbenav) in https://github.com/benavlabs/fastcrud/pull/278
+* Better typing by [@igorbenav](https://github.com/igorbenav) in https://github.com/benavlabs/fastcrud/pull/279
+* Fix codecoverage by [@igorbenav](https://github.com/igorbenav) in https://github.com/benavlabs/fastcrud/pull/280
+* Final preparations for 0.19.0 by [@igorbenav](https://github.com/igorbenav) in https://github.com/benavlabs/fastcrud/pull/281
+
+**Full Changelog**: https://github.com/benavlabs/fastcrud/compare/v0.18.1...v0.19.0
+
+___
+
+## [0.18.1] - Nov 4, 2025
+
+#### Fixed
+- **Composite Primary Key Deduplication Bug in Joins** by [@igorbenav](https://github.com/igorbenav)
+  - Fixed critical bug where models with composite primary keys were incorrectly deduplicated in one-to-many relationships
+  - Enhanced primary key handling to support full composite key comparison instead of just the first key
+  - Comprehensive refactoring of join helper functions for better maintainability and performance
+  - Added extensive test coverage for composite primary key scenarios
+
+#### Improved
+- **Join Processing Architecture** by [@igorbenav](https://github.com/igorbenav)
+  - Major refactoring of `fastcrud/crud/helper.py` with improved code organization
+  - Enhanced column extraction and labeling logic for better join performance
+  - Improved error handling and validation for model attributes
+  - Better separation of concerns in join configuration processing
+
+#### Breaking Changes
+⚠️ **None** - This release maintains full backward compatibility with 0.18.0
+
+#### What's Changed
+* fix composite key bug in joins, refactor helper by [@igorbenav](https://github.com/igorbenav)
+* change version by [@igorbenav](https://github.com/igorbenav)
+
+**Full Changelog**: https://github.com/benavlabs/fastcrud/compare/v0.18.0...v0.18.1
+
+___
+
+## [0.18.0] - Nov 4, 2025
+
+#### Added
+- **CountConfig for Related Object Counting** by [@doubledare704](https://github.com/doubledare704)
+  - New configuration class for efficiently counting related objects in joined queries
+  - Supports many-to-many and one-to-many relationship counting via scalar subqueries
+  - Comprehensive support for composite primary keys and complex joins
+  - Seamless integration with `get_multi_joined` method
+- **PaginatedRequestQuery Schema** by [@doubledare704](https://github.com/doubledare704)
+  - Reusable Pydantic schema for standardizing pagination query parameters
+  - Supports both page-based and offset-based pagination modes
+  - Enhanced OpenAPI documentation with proper field descriptions
+  - Backward-compatible implementation with existing endpoints
+- **Server-Side Field Injection (Pre-Processor Functions)** by [@LucasQR](https://github.com/LucasQR)
+  - Automatic field injection for create, update, and delete operations
+  - CreateConfig, UpdateConfig, and DeleteConfig for comprehensive endpoint configuration
+  - Support for dependency injection with FastAPI's Depends system
+  - Security-focused field exclusion from API schemas and documentation
+
+#### Fixed
+- **return_as_model Join Prefix Compatibility** by [@igorbenav](https://github.com/igorbenav)
+  - Resolved silent failure when join_prefix doesn't match Pydantic schema field names
+  - Added comprehensive validation with clear error messages for mismatched configurations
+  - Enhanced support for nested joins with proper field mapping
+  - Prevents data loss in joined relationships when using return_as_model=True
+
+#### Improved
+- **Documentation and Community** by [@emiliano-gandini-outeda](https://github.com/emiliano-gandini-outeda), [@LucasQR](https://github.com/LucasQR), [@igorbenav](https://github.com/igorbenav)
+  - Added DeepWiki badge and documentation links to README
+  - Fixed Discord invite to use permanent link instead of temporary
+  - Enhanced join documentation with compatibility warnings and examples
+  - Community features and improved project accessibility
+
+#### Breaking Changes
+⚠️ **None** - This release maintains full backward compatibility with 0.17.x
+
+**Full Changelog**: https://github.com/benavlabs/fastcrud/compare/v0.17.1...v0.18.0
+
+___
+
 ## [0.17.1] - Oct 8, 2025
 
 #### Added

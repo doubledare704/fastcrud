@@ -10,7 +10,7 @@ from sqlalchemy import Insert, and_
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.dialects import postgresql, sqlite, mysql
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ..types import UpdateSchemaType, CreateSchemaType
 
 

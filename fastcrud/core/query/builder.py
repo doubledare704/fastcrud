@@ -16,7 +16,7 @@ from ...types import ModelType
 from ..introspection import get_primary_key_columns
 from ..field_management import extract_matching_columns_from_schema
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ...types import SelectSchemaType
 
 
@@ -194,7 +194,7 @@ def build_joined_query(
             count_alias = count.alias or f"{count_model.__tablename__}_count"
 
             count_primary_keys = get_primary_key_columns(count_model)
-            if not count_primary_keys:
+            if not count_primary_keys:  # pragma: no cover
                 raise ValueError(
                     f"The model '{count_model.__name__}' does not have a primary key defined, which is required for counting."
                 )

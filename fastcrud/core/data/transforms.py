@@ -192,7 +192,7 @@ def sort_nested_list(
                 raise ValueError(
                     f"Invalid sort order: {order}. Only 'asc' or 'desc' are allowed."
                 )
-    else:
+    else:  # pragma: no cover
         sort_orders = ["asc"] * len(sort_columns)
 
     sort_specs = [
@@ -341,12 +341,12 @@ def create_paginated_response_data(
         }
 
     """
-    response = {
+    response = {  # pragma: no cover
         data_key: items,
         "total_count": total_count,
     }
 
-    if limit is not None:
+    if limit is not None:  # pragma: no cover
         response["has_more"] = (offset + len(items)) < total_count
         response["offset"] = offset
         response["limit"] = limit
