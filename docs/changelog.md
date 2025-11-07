@@ -5,6 +5,57 @@
 The Changelog documents all notable changes made to FastCRUD. This includes new features, bug fixes, and improvements. It's organized by version and date, providing a clear history of the library's development.
 ___
 
+## [0.19.0] - Nov 7, 2025
+
+#### Added
+- **Complete Architectural Overhaul** by [@igorbenav](https://github.com/igorbenav)
+  - Six-layer protocol-based architecture replacing helper-based design
+  - 8 new Protocol interfaces eliminating circular dependencies and enabling clean testing
+  - 15+ specialized core modules with strategic caching and performance optimizations
+  - Enhanced type safety with method overloads and `return_as_model` parameter across 7 methods
+- **New Configuration Classes** by [@igorbenav](https://github.com/igorbenav)
+  - `CreateConfig`, `UpdateConfig`, `DeleteConfig` for server-side field injection and security
+  - Auto field injection with dependency support and schema exclusion capabilities
+  - All configuration classes available from main `fastcrud` import
+- **Enhanced Type System** by [@igorbenav](https://github.com/igorbenav)
+  - New precise types: `FilterValueType`, `FilterValue`, `FilterValueSequence`
+  - Response types: `GetMultiResponseDict`, `GetMultiResponseModel`, `UpsertMultiResponseDict`, `UpsertMultiResponseModel`
+  - Full type safety with proper type guards and isinstance checks
+
+#### Fixed
+- **Cartesian Product in Complex Joins** by [@igorbenav](https://github.com/igorbenav)
+  - Fixed duplicate results in `get_joined` with multiple one-to-many joins and `nest_joins=True`
+  - Enhanced join processing with proper deduplication for complex relationship scenarios
+
+#### Improved
+- **Performance Optimizations** by [@igorbenav](https://github.com/igorbenav)
+  - Instance-level caching for SQLAlchemy introspection operations
+  - Multi-level caching implementation for query building and schema modifications
+  - Pure function architecture patterns for data transformation
+- **Enhanced Import Structure** by [@igorbenav](https://github.com/igorbenav)
+  - All utilities now available from main `fastcrud` import
+  - Deprecated `fastcrud.paginated` module with proper warning system
+  - Centralized configuration and utility exports
+
+#### Breaking Changes
+⚠️ **None** - This release maintains full backward compatibility with 0.18.x
+
+#### Deprecated
+- **fastcrud.paginated Module** - Import pagination utilities directly from `fastcrud` instead
+
+#### What's Changed
+* Major refactor by [@igorbenav](https://github.com/igorbenav) in https://github.com/benavlabs/fastcrud/pull/275
+* Get joined fix by [@igorbenav](https://github.com/igorbenav) in https://github.com/benavlabs/fastcrud/pull/276  
+* FastCRUD refactor by [@igorbenav](https://github.com/igorbenav) in https://github.com/benavlabs/fastcrud/pull/277
+* Architecture refactor by [@igorbenav](https://github.com/igorbenav) in https://github.com/benavlabs/fastcrud/pull/278
+* Better typing by [@igorbenav](https://github.com/igorbenav) in https://github.com/benavlabs/fastcrud/pull/279
+* Fix codecoverage by [@igorbenav](https://github.com/igorbenav) in https://github.com/benavlabs/fastcrud/pull/280
+* Final preparations for 0.19.0 by [@igorbenav](https://github.com/igorbenav) in https://github.com/benavlabs/fastcrud/pull/281
+
+**Full Changelog**: https://github.com/benavlabs/fastcrud/compare/v0.18.1...v0.19.0
+
+___
+
 ## [0.18.1] - Nov 4, 2025
 
 #### Fixed
