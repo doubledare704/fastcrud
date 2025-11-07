@@ -516,12 +516,26 @@ joins_config = [
     ),
 ]
 
-# Fetch projects with their participants
+# Fetch projects with their participants as dictionaries
 projects_with_participants = await project_crud.get_multi_joined(
     db_session,
     joins_config=joins_config,
 )
+
+# Or fetch as typed Pydantic models
+from .schemas import ReadProjectSchema
+
+projects_with_participants = await project_crud.get_multi_joined(
+    db_session,
+    schema_to_select=ReadProjectSchema,
+    return_as_model=True,
+    joins_config=joins_config,
+)
 ```
+
+**Return Types**:
+- When `return_as_model=True` and `schema_to_select` is provided: `GetMultiResponseModel[SelectSchemaType]` (i.e., `Dict[str, Union[List[SelectSchemaType], int]]`)
+- When `return_as_model=False`: `GetMultiResponseDict` (i.e., `Dict[str, Union[List[Dict[str, Any]], int]]`)
 
 Now, `projects_with_participants['data']` will contain projects along with their participant information. The full results would look like:
 

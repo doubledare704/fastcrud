@@ -277,6 +277,31 @@ For detailed examples and usage patterns, see the [joins documentation](joins.md
 
 FastCRUD provides an `upsert_multi` method to efficiently upsert multiple records in a single operation. This method is particularly useful when you need to insert new records or update existing ones based on a unique constraint.
 
+**Return Types**:
+- When `return_as_model=True` and `schema_to_select` is provided: `UpsertMultiResponseModel[SelectSchemaType]` (i.e., `Dict[str, List[SelectSchemaType]]`)
+- When `return_as_model=False`: `UpsertMultiResponseDict` (i.e., `Dict[str, List[Dict[str, Any]]]`)
+
+**Usage Examples**:
+
+Upsert multiple records and return as dictionaries:
+```python
+from fastcrud import FastCRUD
+
+from .database import session as db
+from .item.model import Item
+from .item.schemas import CreateItemSchema
+
+item_crud = FastCRUD(Item)
+items = await item_crud.upsert_multi(
+    db=db,
+    instances=[
+        CreateItemSchema(price=9.99),
+    ],
+)
+# Returns: {"upserted": [Dict[str, Any], ...]}
+```
+
+Upsert multiple records and return as typed Pydantic models:
 ```python
 from fastcrud import FastCRUD
 
@@ -293,7 +318,7 @@ items = await item_crud.upsert_multi(
     schema_to_select=ItemSchema,
     return_as_model=True,
 )
-# this will return the upserted data in the form of ItemSchema
+# Returns: {"upserted": [ItemSchema, ...]}
 ```
 
 ### Customizing the Update Logic
@@ -454,6 +479,7 @@ joins_config = [
 users = await user_crud.get_multi_joined(
     db=session,
     schema_to_select=ReadUserSchema,
+    return_as_model=True,
     offset=0,
     limit=10,
     sort_columns='username',
@@ -461,6 +487,10 @@ users = await user_crud.get_multi_joined(
     joins_config=joins_config,
 )
 ```
+
+**Return Types for `get_multi_joined`**:
+- When `return_as_model=True` and `schema_to_select` is provided: `GetMultiResponseModel[SelectSchemaType]` (i.e., `Dict[str, Union[List[SelectSchemaType], int]]`)
+- When `return_as_model=False`: `GetMultiResponseDict` (i.e., `Dict[str, Union[List[Dict[str, Any]], int]]`)
 
 Then just pass this list to `joins_config`:
 
