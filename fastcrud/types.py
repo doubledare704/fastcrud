@@ -12,3 +12,6 @@ DeleteSchemaType = TypeVar("DeleteSchemaType", bound=BaseModel)
 
 GetMultiResponseDict = dict[str, Union[list[dict[str, Any]], int]]
 GetMultiResponseModel = dict[str, Union[list[SelectSchemaType], int]]
+
+UpsertMultiResponseDict = dict[str, list[dict[str, Any]]]
+UpsertMultiResponseModel = dict[str, list[SelectSchemaType]]

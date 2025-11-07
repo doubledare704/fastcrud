@@ -1,4 +1,4 @@
-from typing import Any, Generic, Union, Optional, Callable
+from typing import Any, Generic, Union, Optional, Callable, overload, Literal, cast
 from datetime import datetime, timezone
 
 from sqlalchemy import (
@@ -26,6 +26,8 @@ from fastcrud.types import (
     UpdateSchemaType,
     GetMultiResponseModel,
     GetMultiResponseDict,
+    UpsertMultiResponseModel,
+    UpsertMultiResponseDict,
 )
 
 from ..core import (
@@ -54,6 +56,7 @@ from .execution import (
     execute_update_and_return_response,
     handle_joined_filters_delegation,
 )
+from ..core.protocols import CRUDInstance
 from .database_specific import (
     upsert_multi_postgresql,
     upsert_multi_sqlite,
@@ -485,6 +488,39 @@ class FastCRUD(
         self._filter_processor = FilterProcessor(self.model)
         self._query_builder = SQLQueryBuilder(self.model)
 
+    @overload
+    async def create(
+        self,
+        db: AsyncSession,
+        object: CreateSchemaType,
+        *,
+        commit: bool = True,
+        schema_to_select: type[SelectSchemaType],
+        return_as_model: Literal[True],
+    ) -> SelectSchemaType: ...
+
+    @overload
+    async def create(
+        self,
+        db: AsyncSession,
+        object: CreateSchemaType,
+        *,
+        commit: bool = True,
+        schema_to_select: None = None,
+        return_as_model: Literal[False] = False,
+    ) -> Optional[dict[str, Any]]: ...
+
+    @overload
+    async def create(
+        self,
+        db: AsyncSession,
+        object: CreateSchemaType,
+        *,
+        commit: bool = True,
+        schema_to_select: Optional[type[SelectSchemaType]] = None,
+        return_as_model: bool = False,
+    ) -> Union[ModelType, SelectSchemaType, dict[str, Any], None]: ...
+
     async def create(
         self,
         db: AsyncSession,
@@ -504,7 +540,11 @@ class FastCRUD(
             return_as_model: If `True`, returns data as an instance of `schema_to_select`.
 
         Returns:
-            The created database object, or a Pydantic model if `schema_to_select` is provided.
+            The created database object, or a Pydantic model if `schema_to_select` is provided:
+
+            - When `return_as_model=True` and `schema_to_select` is provided: `SelectSchemaType`
+            - When `return_as_model=False` and `schema_to_select` is provided: `Dict[str, Any]`
+            - When `schema_to_select` is not provided: `ModelType` (the raw SQLAlchemy model)
         """
         if return_as_model and not schema_to_select:
             raise ValueError(
@@ -601,6 +641,39 @@ class FastCRUD(
             stmt = self._query_builder.apply_sorting(stmt, sort_columns, sort_orders)
         return stmt
 
+    @overload
+    async def get(
+        self,
+        db: AsyncSession,
+        *,
+        schema_to_select: type[SelectSchemaType],
+        return_as_model: Literal[True],
+        one_or_none: bool = False,
+        **kwargs: Any,
+    ) -> Optional[SelectSchemaType]: ...
+
+    @overload
+    async def get(
+        self,
+        db: AsyncSession,
+        *,
+        schema_to_select: None = None,
+        return_as_model: Literal[False] = False,
+        one_or_none: bool = False,
+        **kwargs: Any,
+    ) -> Optional[dict[str, Any]]: ...
+
+    @overload
+    async def get(
+        self,
+        db: AsyncSession,
+        *,
+        schema_to_select: Optional[type[SelectSchemaType]] = None,
+        return_as_model: bool = False,
+        one_or_none: bool = False,
+        **kwargs: Any,
+    ) -> Optional[Union[dict[str, Any], SelectSchemaType]]: ...
+
     async def get(
         self,
         db: AsyncSession,
@@ -608,7 +681,7 @@ class FastCRUD(
         return_as_model: bool = False,
         one_or_none: bool = False,
         **kwargs: Any,
-    ) -> Optional[Union[dict, SelectSchemaType]]:
+    ) -> Optional[Union[dict[str, Any], SelectSchemaType]]:
         """
         Fetches a single record based on specified filters.
 
@@ -627,7 +700,10 @@ class FastCRUD(
             ValueError: If `return_as_model` is `True` but `schema_to_select` is not provided.
 
         Returns:
-            A dictionary or a Pydantic model instance of the fetched database row, or `None` if no match is found.
+            A dictionary or a Pydantic model instance of the fetched database row, or `None` if no match is found:
+
+            - When `return_as_model=True` and `schema_to_select` is provided: `Optional[SelectSchemaType]`
+            - When `return_as_model=False`: `Optional[Dict[str, Any]]`
 
         Examples:
             Fetch a user by ID:
@@ -672,6 +748,36 @@ class FastCRUD(
     def _get_pk_dict(self, instance):
         return {pk.name: getattr(instance, pk.name) for pk in self._primary_keys}
 
+    @overload
+    async def upsert(
+        self,
+        db: AsyncSession,
+        instance: Union[UpdateSchemaType, CreateSchemaType],
+        *,
+        schema_to_select: type[SelectSchemaType],
+        return_as_model: Literal[True],
+    ) -> Optional[SelectSchemaType]: ...
+
+    @overload
+    async def upsert(
+        self,
+        db: AsyncSession,
+        instance: Union[UpdateSchemaType, CreateSchemaType],
+        *,
+        schema_to_select: None = None,
+        return_as_model: Literal[False] = False,
+    ) -> Optional[dict[str, Any]]: ...
+
+    @overload
+    async def upsert(
+        self,
+        db: AsyncSession,
+        instance: Union[UpdateSchemaType, CreateSchemaType],
+        *,
+        schema_to_select: Optional[type[SelectSchemaType]] = None,
+        return_as_model: bool = False,
+    ) -> Union[SelectSchemaType, dict[str, Any], None]: ...
+
     async def upsert(
         self,
         db: AsyncSession,
@@ -690,7 +796,10 @@ class FastCRUD(
             return_as_model: If `True`, converts the fetched data to Pydantic models based on `schema_to_select`. Defaults to `False`.
 
         Returns:
-            The created or updated instance
+            The created or updated instance:
+
+            - When `return_as_model=True` and `schema_to_select` is provided: `SelectSchemaType`
+            - When `return_as_model=False`: `Dict[str, Any]`
         """
         _pks = self._get_pk_dict(instance)
         schema_to_select = schema_to_select or type(instance)  # type: ignore
@@ -716,6 +825,50 @@ class FastCRUD(
 
         return db_instance
 
+    @overload
+    async def upsert_multi(
+        self,
+        db: AsyncSession,
+        instances: list[Union[UpdateSchemaType, CreateSchemaType]],
+        *,
+        commit: bool = False,
+        return_columns: Optional[list[str]] = None,
+        schema_to_select: type[SelectSchemaType],
+        return_as_model: Literal[True],
+        update_override: Optional[dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> Optional[UpsertMultiResponseModel[SelectSchemaType]]: ...
+
+    @overload
+    async def upsert_multi(
+        self,
+        db: AsyncSession,
+        instances: list[Union[UpdateSchemaType, CreateSchemaType]],
+        *,
+        commit: bool = False,
+        return_columns: Optional[list[str]] = None,
+        schema_to_select: None = None,
+        return_as_model: Literal[False] = False,
+        update_override: Optional[dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> Optional[UpsertMultiResponseDict]: ...
+
+    @overload
+    async def upsert_multi(
+        self,
+        db: AsyncSession,
+        instances: list[Union[UpdateSchemaType, CreateSchemaType]],
+        *,
+        commit: bool = False,
+        return_columns: Optional[list[str]] = None,
+        schema_to_select: Optional[type[SelectSchemaType]] = None,
+        return_as_model: bool = False,
+        update_override: Optional[dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> Optional[
+        Union[UpsertMultiResponseDict, UpsertMultiResponseModel[SelectSchemaType]]
+    ]: ...
+
     async def upsert_multi(
         self,
         db: AsyncSession,
@@ -726,7 +879,9 @@ class FastCRUD(
         return_as_model: bool = False,
         update_override: Optional[dict[str, Any]] = None,
         **kwargs: Any,
-    ) -> Optional[dict[str, Any]]:
+    ) -> Optional[
+        Union[UpsertMultiResponseDict, UpsertMultiResponseModel[SelectSchemaType]]
+    ]:
         """
         Upsert multiple records in the database. The underlying implementation varies based on the database dialect.
 
@@ -741,7 +896,14 @@ class FastCRUD(
             **kwargs: Filters to identify the record(s) to update on conflict, supporting advanced comparison operators for refined querying.
 
         Returns:
-            The updated record(s) as a dictionary or Pydantic model instance or None, depending on the value of `return_as_model` and `return_columns`.
+            The upserted records as a dictionary containing the operation results:
+
+            - When `return_as_model=True` and `schema_to_select` is provided: `UpsertMultiResponseModel[SelectSchemaType]`
+              (`Dict[str, List[SelectSchemaType]]`)
+            - When `return_as_model=False`: `UpsertMultiResponseDict`
+              (`Dict[str, List[Dict[str, Any]]]`)
+
+            The dictionary contains keys like "updated" and "created" with lists of corresponding records.
 
         Raises:
             ValueError: If the MySQL dialect is used with filters, return_columns, schema_to_select, or return_as_model.
@@ -967,6 +1129,51 @@ class FastCRUD(
 
         return total_count
 
+    @overload
+    async def get_multi(
+        self,
+        db: AsyncSession,
+        *,
+        offset: int = 0,
+        limit: Optional[int] = 100,
+        schema_to_select: type[SelectSchemaType],
+        sort_columns: Optional[Union[str, list[str]]] = None,
+        sort_orders: Optional[Union[str, list[str]]] = None,
+        return_as_model: Literal[True],
+        return_total_count: bool = True,
+        **kwargs: Any,
+    ) -> GetMultiResponseModel[SelectSchemaType]: ...
+
+    @overload
+    async def get_multi(
+        self,
+        db: AsyncSession,
+        *,
+        offset: int = 0,
+        limit: Optional[int] = 100,
+        schema_to_select: None = None,
+        sort_columns: Optional[Union[str, list[str]]] = None,
+        sort_orders: Optional[Union[str, list[str]]] = None,
+        return_as_model: Literal[False] = False,
+        return_total_count: bool = True,
+        **kwargs: Any,
+    ) -> GetMultiResponseDict: ...
+
+    @overload
+    async def get_multi(
+        self,
+        db: AsyncSession,
+        *,
+        offset: int = 0,
+        limit: Optional[int] = 100,
+        schema_to_select: Optional[type[SelectSchemaType]] = None,
+        sort_columns: Optional[Union[str, list[str]]] = None,
+        sort_orders: Optional[Union[str, list[str]]] = None,
+        return_as_model: bool = False,
+        return_total_count: bool = True,
+        **kwargs: Any,
+    ) -> Union[GetMultiResponseModel[SelectSchemaType], GetMultiResponseDict]: ...
+
     async def get_multi(
         self,
         db: AsyncSession,
@@ -1083,7 +1290,7 @@ class FastCRUD(
 
         if joined_filters_info:
             return await handle_joined_filters_delegation(
-                crud_instance=self,
+                crud_instance=cast(CRUDInstance, self),
                 joined_filters_info=joined_filters_info,
                 db=db,
                 offset=offset,
@@ -1424,10 +1631,12 @@ class FastCRUD(
 
         return process_joined_data(data_list, join_definitions, nest_joins, self.model)
 
+    @overload
     async def get_multi_joined(
         self,
         db: AsyncSession,
-        schema_to_select: Optional[type[SelectSchemaType]] = None,
+        schema_to_select: type[SelectSchemaType],
+        return_as_model: Literal[True],
         join_model: Optional[type[ModelType]] = None,
         join_on: Optional[Any] = None,
         join_prefix: Optional[str] = None,
@@ -1440,14 +1649,91 @@ class FastCRUD(
         limit: Optional[int] = 100,
         sort_columns: Optional[Union[str, list[str]]] = None,
         sort_orders: Optional[Union[str, list[str]]] = None,
-        return_as_model: bool = False,
         joins_config: Optional[list[JoinConfig]] = None,
         counts_config: Optional[list[CountConfig]] = None,
         return_total_count: bool = True,
         relationship_type: Optional[str] = None,
         nested_schema_to_select: Optional[dict[str, type[SelectSchemaType]]] = None,
         **kwargs: Any,
-    ) -> dict[str, Any]:
+    ) -> GetMultiResponseModel[SelectSchemaType]: ...
+
+    @overload
+    async def get_multi_joined(
+        self,
+        db: AsyncSession,
+        schema_to_select: None = None,
+        return_as_model: Literal[False] = False,
+        join_model: Optional[type[ModelType]] = None,
+        join_on: Optional[Any] = None,
+        join_prefix: Optional[str] = None,
+        join_schema_to_select: Optional[type[SelectSchemaType]] = None,
+        join_type: str = "left",
+        alias: Optional[AliasedClass[Any]] = None,
+        join_filters: Optional[dict] = None,
+        nest_joins: bool = False,
+        offset: int = 0,
+        limit: Optional[int] = 100,
+        sort_columns: Optional[Union[str, list[str]]] = None,
+        sort_orders: Optional[Union[str, list[str]]] = None,
+        joins_config: Optional[list[JoinConfig]] = None,
+        counts_config: Optional[list[CountConfig]] = None,
+        return_total_count: bool = True,
+        relationship_type: Optional[str] = None,
+        nested_schema_to_select: Optional[dict[str, type[SelectSchemaType]]] = None,
+        **kwargs: Any,
+    ) -> GetMultiResponseDict: ...
+
+    @overload
+    async def get_multi_joined(
+        self,
+        db: AsyncSession,
+        *,
+        schema_to_select: Optional[type[SelectSchemaType]] = None,
+        return_as_model: bool = False,
+        join_model: Optional[type[ModelType]] = None,
+        join_on: Optional[Any] = None,
+        join_prefix: Optional[str] = None,
+        join_schema_to_select: Optional[type[SelectSchemaType]] = None,
+        join_type: str = "left",
+        alias: Optional[AliasedClass[Any]] = None,
+        join_filters: Optional[dict] = None,
+        nest_joins: bool = False,
+        offset: int = 0,
+        limit: Optional[int] = 100,
+        sort_columns: Optional[Union[str, list[str]]] = None,
+        sort_orders: Optional[Union[str, list[str]]] = None,
+        joins_config: Optional[list[JoinConfig]] = None,
+        counts_config: Optional[list[CountConfig]] = None,
+        return_total_count: bool = True,
+        relationship_type: Optional[str] = None,
+        nested_schema_to_select: Optional[dict[str, type[SelectSchemaType]]] = None,
+        **kwargs: Any,
+    ) -> Union[GetMultiResponseModel[SelectSchemaType], GetMultiResponseDict]: ...
+
+    async def get_multi_joined(
+        self,
+        db: AsyncSession,
+        schema_to_select: Optional[type[SelectSchemaType]] = None,
+        return_as_model: bool = False,
+        join_model: Optional[type[ModelType]] = None,
+        join_on: Optional[Any] = None,
+        join_prefix: Optional[str] = None,
+        join_schema_to_select: Optional[type[SelectSchemaType]] = None,
+        join_type: str = "left",
+        alias: Optional[AliasedClass[Any]] = None,
+        join_filters: Optional[dict] = None,
+        nest_joins: bool = False,
+        offset: int = 0,
+        limit: Optional[int] = 100,
+        sort_columns: Optional[Union[str, list[str]]] = None,
+        sort_orders: Optional[Union[str, list[str]]] = None,
+        joins_config: Optional[list[JoinConfig]] = None,
+        counts_config: Optional[list[CountConfig]] = None,
+        return_total_count: bool = True,
+        relationship_type: Optional[str] = None,
+        nested_schema_to_select: Optional[dict[str, type[SelectSchemaType]]] = None,
+        **kwargs: Any,
+    ) -> Union[GetMultiResponseModel[SelectSchemaType], GetMultiResponseDict]:
         """
         Fetch multiple records with a join on another model, allowing for pagination, optional sorting, and model conversion.
 
@@ -1477,7 +1763,12 @@ class FastCRUD(
             **kwargs: Filters to apply to the primary query, including advanced comparison operators for refined searching.
 
         Returns:
-            A dictionary containing the fetched rows under `"data"` key and total count under `"total_count"`.
+            A dictionary containing the fetched rows under `"data"` key and total count under `"total_count"`:
+
+            - When `return_as_model=True` and `schema_to_select` is provided: `GetMultiResponseModel[SelectSchemaType]`
+              (`Dict[str, Union[List[SelectSchemaType], int]]`)
+            - When `return_as_model=False`: `GetMultiResponseDict`
+              (`Dict[str, Union[List[Dict[str, Any]], int]]`)
 
         Raises:
             ValueError: If either `limit` or `offset` are negative, or if `schema_to_select` is required but not provided or invalid.
@@ -1801,6 +2092,48 @@ class FastCRUD(
             **kwargs,
         )
 
+    @overload
+    async def get_multi_by_cursor(
+        self,
+        db: AsyncSession,
+        *,
+        cursor: Any = None,
+        limit: int = 100,
+        schema_to_select: type[SelectSchemaType],
+        sort_column: str = "id",
+        sort_order: str = "asc",
+        return_as_model: Literal[True],
+        **kwargs: Any,
+    ) -> dict[str, Union[list[SelectSchemaType], Any]]: ...
+
+    @overload
+    async def get_multi_by_cursor(
+        self,
+        db: AsyncSession,
+        *,
+        cursor: Any = None,
+        limit: int = 100,
+        schema_to_select: None = None,
+        sort_column: str = "id",
+        sort_order: str = "asc",
+        return_as_model: Literal[False] = False,
+        **kwargs: Any,
+    ) -> dict[str, Union[list[dict[str, Any]], Any]]: ...
+
+    @overload
+    async def get_multi_by_cursor(
+        self,
+        db: AsyncSession,
+        *,
+        cursor: Any = None,
+        limit: int = 100,
+        schema_to_select: Optional[type[SelectSchemaType]] = None,
+        sort_column: str = "id",
+        sort_order: str = "asc",
+        return_as_model: bool = False,
+        **kwargs: Any,
+    ) -> dict[str, Union[list[Union[dict[str, Any], SelectSchemaType]], Any]]: ...
+
     async def get_multi_by_cursor(
         self,
         db: AsyncSession,
@@ -1809,6 +2142,7 @@ class FastCRUD(
         schema_to_select: Optional[type[SelectSchemaType]] = None,
         sort_column: str = "id",
         sort_order: str = "asc",
+        return_as_model: bool = False,
         **kwargs: Any,
     ) -> dict[str, Any]:
         """
@@ -1820,13 +2154,17 @@ class FastCRUD(
             db: The SQLAlchemy async session.
             cursor: The cursor value to start fetching records from. Defaults to `None`.
             limit: Maximum number of rows to fetch.
-            schema_to_select: Pydantic schema for selecting specific columns.
+            schema_to_select: Pydantic schema for selecting specific columns. Required if `return_as_model` is True.
             sort_column: Column name to use for sorting and cursor pagination.
             sort_order: Sorting direction, either `"asc"` or `"desc"`.
+            return_as_model: If `True`, converts the fetched data to Pydantic models based on `schema_to_select`. Defaults to `False`.
             **kwargs: Filters to apply to the query, including advanced comparison operators for detailed querying.
 
         Returns:
-            A dictionary containing the fetched rows under `"data"` key and the next cursor value under `"next_cursor"`.
+            A dictionary containing the fetched rows under `"data"` key and the next cursor value under `"next_cursor"`:
+
+            - When `return_as_model=True` and `schema_to_select` is provided: `Dict[str, Union[List[SelectSchemaType], Any]]`
+            - When `return_as_model=False`: `Dict[str, Union[List[Dict[str, Any]], Any]]`
 
         Examples:
             Fetch the first set of records (e.g., the first page in an infinite scrolling scenario):
@@ -1848,25 +2186,42 @@ class FastCRUD(
             )
             ```
 
-            Fetch records with age greater than 30 using cursor-based pagination:
+            Fetch records as Pydantic models with cursor pagination:
 
             ```python
+            # Returns typed Pydantic models
             first_page = await user_crud.get_multi_by_cursor(
                 db,
+                schema_to_select=ReadUserSchema,
+                return_as_model=True,
                 limit=10,
-                sort_column='age',
-                sort_order='asc',
+                sort_column='registration_date',
+                age__gt=30,
             )
             ```
 
             Fetch records excluding a specific username using cursor-based pagination:
 
             ```python
+            result = await user_crud.get_multi_by_cursor(
                 db,
                 limit=10,
                 sort_column='username',
                 sort_order='asc',
                 username__ne='admin',
+            )
+            ```
+
+            Fetch records as Pydantic model instances using cursor-based pagination:
+
+            ```python
+            result = await user_crud.get_multi_by_cursor(
+                db,
+                limit=10,
+                schema_to_select=ReadUserSchema,
+                return_as_model=True,
+                sort_column='created_at',
+                sort_order='desc',
             )
             ```
 
@@ -1896,10 +2251,56 @@ class FastCRUD(
 
         result = await db.execute(stmt)
         data = [dict(row) for row in result.mappings()]
-
         next_cursor = data[-1][sort_column] if len(data) == limit else None
 
-        return {"data": data, "next_cursor": next_cursor}
+        formatted_data = format_multi_response(data, schema_to_select, return_as_model)
+
+        return {"data": formatted_data, "next_cursor": next_cursor}
+
+    @overload
+    async def update(
+        self,
+        db: AsyncSession,
+        object: Union[UpdateSchemaType, dict[str, Any]],
+        *,
+        allow_multiple: bool = False,
+        commit: bool = True,
+        return_columns: Optional[list[str]] = None,
+        schema_to_select: type[SelectSchemaType],
+        return_as_model: Literal[True],
+        one_or_none: bool = False,
+        **kwargs: Any,
+    ) -> Optional[SelectSchemaType]: ...
+
+    @overload
+    async def update(
+        self,
+        db: AsyncSession,
+        object: Union[UpdateSchemaType, dict[str, Any]],
+        *,
+        allow_multiple: bool = False,
+        commit: bool = True,
+        return_columns: Optional[list[str]] = None,
+        schema_to_select: None = None,
+        return_as_model: Literal[False] = False,
+        one_or_none: bool = False,
+        **kwargs: Any,
+    ) -> Optional[dict[str, Any]]: ...
+
+    @overload
+    async def update(
+        self,
+        db: AsyncSession,
+        object: Union[UpdateSchemaType, dict[str, Any]],
+        *,
+        allow_multiple: bool = False,
+        commit: bool = True,
+        return_columns: Optional[list[str]] = None,
+        schema_to_select: Optional[type[SelectSchemaType]] = None,
+        return_as_model: bool = False,
+        one_or_none: bool = False,
+        **kwargs: Any,
+    ) -> Optional[Union[dict[str, Any], SelectSchemaType]]: ...
 
     async def update(
         self,
@@ -1930,7 +2331,10 @@ class FastCRUD(
             **kwargs: Filters to identify the record(s) to update, supporting advanced comparison operators for refined querying.
 
         Returns:
-            The updated record(s) as a dictionary or Pydantic model instance or `None`, depending on the value of `return_as_model` and `return_columns`.
+            The updated record(s) as a dictionary or Pydantic model instance or `None`:
+
+            - When `return_as_model=True` and `schema_to_select` is provided: `Optional[SelectSchemaType]`
+            - When `return_as_model=False`: `Optional[Dict[str, Any]]`
 
         Raises:
             MultipleResultsFound: If `allow_multiple` is `False` and more than one record matches the filters.

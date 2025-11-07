@@ -437,7 +437,12 @@ class EndpointCreator:
 
         return cast(Callable[..., Awaitable[Any]], endpoint)
 
-    def _read_items(self) -> Callable[..., Awaitable[Union[dict[str, Any], Any]]]:
+    def _read_items(
+        self,
+    ) -> Callable[
+        ...,
+        Awaitable[Union[dict[str, Any], PaginatedListResponse[Any], ListResponse[Any]]],
+    ]:
         """Creates an endpoint for reading multiple items from the database.
 
         The created endpoint supports:
@@ -527,7 +532,7 @@ class EndpointCreator:
                     multi_response_key=self.crud.multi_response_key,
                 )
 
-            return crud_data  # pragma: no cover
+            return cast(dict[str, Any], crud_data)  # pragma: no cover
 
         return endpoint
 

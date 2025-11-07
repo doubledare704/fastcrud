@@ -7,7 +7,20 @@ These protocols will serve as the foundation for abstract base classes
 when multi-ORM support is implemented.
 """
 
-from typing import Protocol, Any, Optional, Union, List, Dict
+from typing import (
+    Protocol,
+    Any,
+    Optional,
+    Union,
+    List,
+    Dict,
+    overload,
+    Literal,
+    TYPE_CHECKING,
+)
+
+if TYPE_CHECKING:
+    from ..types import SelectSchemaType, GetMultiResponseModel, GetMultiResponseDict
 
 
 class CRUDInstance(Protocol):
@@ -20,10 +33,12 @@ class CRUDInstance(Protocol):
 
     model: Any
 
+    @overload
     async def get_multi_joined(
         self,
         db: Any,
-        schema_to_select: Optional[Any] = None,
+        schema_to_select: "type[SelectSchemaType]",
+        return_as_model: Literal[True],
         join_model: Optional[Any] = None,
         join_on: Optional[Any] = None,
         join_prefix: Optional[str] = None,
@@ -36,14 +51,91 @@ class CRUDInstance(Protocol):
         limit: Optional[int] = None,
         sort_columns: Optional[Union[str, List[str]]] = None,
         sort_orders: Optional[Union[str, List[str]]] = None,
-        return_as_model: bool = False,
         joins_config: Optional[List[Any]] = None,
         counts_config: Optional[List[Any]] = None,
         return_total_count: bool = True,
         relationship_type: Optional[str] = None,
         nested_schema_to_select: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
-    ) -> Union[Dict[str, Any], Any]: ...
+    ) -> "GetMultiResponseModel[SelectSchemaType]": ...
+
+    @overload
+    async def get_multi_joined(
+        self,
+        db: Any,
+        schema_to_select: None = None,
+        return_as_model: Literal[False] = False,
+        join_model: Optional[Any] = None,
+        join_on: Optional[Any] = None,
+        join_prefix: Optional[str] = None,
+        join_schema_to_select: Optional[Any] = None,
+        join_type: str = "left",
+        alias: Optional[Any] = None,
+        join_filters: Optional[Dict] = None,
+        nest_joins: bool = False,
+        offset: int = 0,
+        limit: Optional[int] = None,
+        sort_columns: Optional[Union[str, List[str]]] = None,
+        sort_orders: Optional[Union[str, List[str]]] = None,
+        joins_config: Optional[List[Any]] = None,
+        counts_config: Optional[List[Any]] = None,
+        return_total_count: bool = True,
+        relationship_type: Optional[str] = None,
+        nested_schema_to_select: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> "GetMultiResponseDict": ...
+
+    @overload
+    async def get_multi_joined(
+        self,
+        db: Any,
+        *,
+        schema_to_select: Optional[Any] = None,
+        return_as_model: bool = False,
+        join_model: Optional[Any] = None,
+        join_on: Optional[Any] = None,
+        join_prefix: Optional[str] = None,
+        join_schema_to_select: Optional[Any] = None,
+        join_type: str = "left",
+        alias: Optional[Any] = None,
+        join_filters: Optional[Dict] = None,
+        nest_joins: bool = False,
+        offset: int = 0,
+        limit: Optional[int] = None,
+        sort_columns: Optional[Union[str, List[str]]] = None,
+        sort_orders: Optional[Union[str, List[str]]] = None,
+        joins_config: Optional[List[Any]] = None,
+        counts_config: Optional[List[Any]] = None,
+        return_total_count: bool = True,
+        relationship_type: Optional[str] = None,
+        nested_schema_to_select: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> Union["GetMultiResponseModel[SelectSchemaType]", "GetMultiResponseDict"]: ...
+
+    async def get_multi_joined(
+        self,
+        db: Any,
+        schema_to_select: Optional[Any] = None,
+        return_as_model: bool = False,
+        join_model: Optional[Any] = None,
+        join_on: Optional[Any] = None,
+        join_prefix: Optional[str] = None,
+        join_schema_to_select: Optional[Any] = None,
+        join_type: str = "left",
+        alias: Optional[Any] = None,
+        join_filters: Optional[Dict] = None,
+        nest_joins: bool = False,
+        offset: int = 0,
+        limit: Optional[int] = None,
+        sort_columns: Optional[Union[str, List[str]]] = None,
+        sort_orders: Optional[Union[str, List[str]]] = None,
+        joins_config: Optional[List[Any]] = None,
+        counts_config: Optional[List[Any]] = None,
+        return_total_count: bool = True,
+        relationship_type: Optional[str] = None,
+        nested_schema_to_select: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> Union["GetMultiResponseModel[SelectSchemaType]", "GetMultiResponseDict"]: ...
 
 
 class ModelIntrospector(Protocol):
