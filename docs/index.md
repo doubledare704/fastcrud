@@ -6,7 +6,7 @@
 </style>
 
 <p align="center">
-  <a href="https://github.com/igorbenav/fastcrud">
+  <a href="https://github.com/benavlabs/fastcrud">
     <img src="assets/fastcrud.png?raw=true" alt="FastCRUD written in white with a drawing of a gear and inside this gear a bolt." width="45%" height="auto">
   </a>
 </p>
@@ -14,8 +14,8 @@
   <i>Powerful CRUD methods and automatic endpoint creation for FastAPI.</i>
 </p>
 <p align="center" markdown=1>
-<a href="https://github.com/igorbenav/fastcrud/actions/workflows/tests.yml">
-  <img src="https://github.com/igorbenav/fastcrud/actions/workflows/tests.yml/badge.svg" alt="Tests"/>
+<a href="https://github.com/benavlabs/fastcrud/actions/workflows/tests.yml">
+  <img src="https://github.com/benavlabs/fastcrud/actions/workflows/tests.yml/badge.svg" alt="Tests"/>
 </a>
 <a href="https://pypi.org/project/fastcrud/">
   <img src="https://img.shields.io/pypi/v/fastcrud?color=%2334D058&label=pypi%20package" alt="PyPi Version"/>
@@ -24,8 +24,8 @@
   <img src="https://img.shields.io/pypi/pyversions/fastcrud.svg?color=%2334D058" alt="Supported Python Versions"/>
 </a>
 </a>
-<a href="https://codecov.io/gh/igorbenav/fastcrud" > 
-  <img src="https://codecov.io/gh/igorbenav/fastcrud/graph/badge.svg?token=J7XUP29RKU"/> 
+<a href="https://codecov.io/gh/benavlabs/fastcrud" > 
+  <img src="https://codecov.io/gh/benavlabs/fastcrud/graph/badge.svg?token=J7XUP29RKU"/> 
 </a>
 </p>
 <hr>
