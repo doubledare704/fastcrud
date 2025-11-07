@@ -1,6 +1,6 @@
 import pytest
 from fastcrud.crud.fast_crud import FastCRUD
-from ...sqlmodel.conftest import ModelTest
+from ...sqlmodel.conftest import ModelTest, ReadSchemaTest
 
 
 @pytest.mark.asyncio
@@ -169,3 +169,113 @@ async def test_get_multi_by_cursor_desc_with_cursor_filter(async_session, test_d
         assert (
             record["id"] < first_page_last_id
         ), "Each ID in the second page should be less than the last ID of the first page"
+
+
+@pytest.mark.asyncio
+async def test_get_multi_by_cursor_return_as_model(async_session, test_data):
+    for item in test_data:
+        async_session.add(ModelTest(**item))
+    await async_session.commit()
+
+    crud = FastCRUD(ModelTest)
+    result = await crud.get_multi_by_cursor(
+        db=async_session,
+        limit=5,
+        schema_to_select=ReadSchemaTest,
+        return_as_model=True,
+    )
+
+    assert len(result["data"]) == 5
+    assert all(isinstance(item, ReadSchemaTest) for item in result["data"])
+    assert "next_cursor" in result
+
+
+@pytest.mark.asyncio
+async def test_get_multi_by_cursor_return_as_model_with_pagination(
+    async_session, test_data
+):
+    for item in test_data:
+        async_session.add(ModelTest(**item))
+    await async_session.commit()
+
+    crud = FastCRUD(ModelTest)
+    first_page = await crud.get_multi_by_cursor(
+        db=async_session, limit=3, schema_to_select=ReadSchemaTest, return_as_model=True
+    )
+
+    assert len(first_page["data"]) == 3
+    assert all(isinstance(item, ReadSchemaTest) for item in first_page["data"])
+
+    second_page = await crud.get_multi_by_cursor(
+        db=async_session,
+        cursor=first_page["next_cursor"],
+        limit=3,
+        schema_to_select=ReadSchemaTest,
+        return_as_model=True,
+    )
+
+    assert len(second_page["data"]) == 3
+    assert all(isinstance(item, ReadSchemaTest) for item in second_page["data"])
+    assert second_page["data"][0].id > first_page["data"][-1].id
+
+
+@pytest.mark.asyncio
+async def test_get_multi_by_cursor_return_as_model_without_schema(
+    async_session, test_data
+):
+    for item in test_data:
+        async_session.add(ModelTest(**item))
+    await async_session.commit()
+
+    crud = FastCRUD(ModelTest)
+
+    with pytest.raises(ValueError) as exc_info:
+        await crud.get_multi_by_cursor(db=async_session, return_as_model=True)
+
+    assert "schema_to_select must be provided when return_as_model is True" in str(
+        exc_info.value
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_multi_by_cursor_return_as_model_with_filtering(
+    async_session, test_data
+):
+    for item in test_data:
+        async_session.add(ModelTest(**item))
+    await async_session.commit()
+
+    crud = FastCRUD(ModelTest)
+    result = await crud.get_multi_by_cursor(
+        db=async_session,
+        limit=10,
+        schema_to_select=ReadSchemaTest,
+        return_as_model=True,
+        id__gte=5,
+    )
+
+    assert all(isinstance(item, ReadSchemaTest) for item in result["data"])
+    assert all(item.id >= 5 for item in result["data"])
+
+
+@pytest.mark.asyncio
+async def test_get_multi_by_cursor_return_as_model_descending(async_session, test_data):
+    for item in test_data:
+        async_session.add(ModelTest(**item))
+    await async_session.commit()
+
+    crud = FastCRUD(ModelTest)
+    result = await crud.get_multi_by_cursor(
+        db=async_session,
+        limit=5,
+        schema_to_select=ReadSchemaTest,
+        return_as_model=True,
+        sort_column="id",
+        sort_order="desc",
+    )
+
+    assert len(result["data"]) == 5
+    assert all(isinstance(item, ReadSchemaTest) for item in result["data"])
+    # Check descending order
+    for i in range(len(result["data"]) - 1):
+        assert result["data"][i].id > result["data"][i + 1].id
