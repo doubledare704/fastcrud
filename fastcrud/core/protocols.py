@@ -19,7 +19,7 @@ from typing import (
     TYPE_CHECKING,
 )
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ..types import SelectSchemaType, GetMultiResponseModel, GetMultiResponseDict
 
 
@@ -57,7 +57,7 @@ class CRUDInstance(Protocol):
         relationship_type: Optional[str] = None,
         nested_schema_to_select: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
-    ) -> "GetMultiResponseModel[SelectSchemaType]": ...
+    ) -> "GetMultiResponseModel[SelectSchemaType]": ...  # pragma: no cover
 
     @overload
     async def get_multi_joined(
@@ -83,7 +83,7 @@ class CRUDInstance(Protocol):
         relationship_type: Optional[str] = None,
         nested_schema_to_select: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
-    ) -> "GetMultiResponseDict": ...
+    ) -> "GetMultiResponseDict": ...  # pragma: no cover
 
     @overload
     async def get_multi_joined(
@@ -110,7 +110,9 @@ class CRUDInstance(Protocol):
         relationship_type: Optional[str] = None,
         nested_schema_to_select: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
-    ) -> Union["GetMultiResponseModel[SelectSchemaType]", "GetMultiResponseDict"]: ...
+    ) -> Union[
+        "GetMultiResponseModel[SelectSchemaType]", "GetMultiResponseDict"
+    ]: ...  # pragma: no cover
 
     async def get_multi_joined(
         self,
@@ -135,7 +137,9 @@ class CRUDInstance(Protocol):
         relationship_type: Optional[str] = None,
         nested_schema_to_select: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
-    ) -> Union["GetMultiResponseModel[SelectSchemaType]", "GetMultiResponseDict"]: ...
+    ) -> Union[
+        "GetMultiResponseModel[SelectSchemaType]", "GetMultiResponseDict"
+    ]: ...  # pragma: no cover
 
 
 class ModelIntrospector(Protocol):
@@ -148,19 +152,19 @@ class ModelIntrospector(Protocol):
 
     def get_primary_keys(self, model: Any) -> List[str]:
         """Get list of primary key column names for a model."""
-        ...
+        ...  # pragma: no cover
 
     def get_column_names(self, model: Any) -> List[str]:
         """Get list of all column names for a model."""
-        ...
+        ...  # pragma: no cover
 
     def get_column_types(self, model: Any) -> Dict[str, Any]:
         """Get mapping of column names to their types."""
-        ...
+        ...  # pragma: no cover
 
     def get_relationships(self, model: Any) -> Dict[str, Any]:
         """Get relationship information for a model."""
-        ...
+        ...  # pragma: no cover
 
 
 class DataProcessor(Protocol):
@@ -179,7 +183,7 @@ class DataProcessor(Protocol):
         primary_model: Any,
     ) -> Optional[Dict[str, Any]]:
         """Process joined data for complex relationship scenarios."""
-        ...
+        ...  # pragma: no cover
 
 
 class FilterProcessor(Protocol):
@@ -196,14 +200,14 @@ class FilterProcessor(Protocol):
         **kwargs: Any,
     ) -> List[Any]:
         """Parse filter arguments into database query conditions."""
-        ...
+        ...  # pragma: no cover
 
     def separate_joined_filters(
         self,
         **kwargs: Any,
     ) -> tuple[Dict[str, Any], Dict[str, Any]]:
         """Separate regular filters from joined table filters."""
-        ...
+        ...  # pragma: no cover
 
 
 class QueryBuilder(Protocol):
@@ -216,11 +220,11 @@ class QueryBuilder(Protocol):
 
     def build_base_select(self, columns: Optional[List[Any]] = None) -> Any:
         """Build a base SELECT statement."""
-        ...
+        ...  # pragma: no cover
 
     def apply_filters(self, stmt: Any, filters: List[Any]) -> Any:
         """Apply WHERE conditions to a statement."""
-        ...
+        ...  # pragma: no cover
 
     def apply_sorting(
         self,
@@ -229,7 +233,7 @@ class QueryBuilder(Protocol):
         sort_orders: Optional[Union[str, List[str]]] = None,
     ) -> Any:
         """Apply ORDER BY to a statement."""
-        ...
+        ...  # pragma: no cover
 
     def apply_pagination(
         self,
@@ -238,7 +242,7 @@ class QueryBuilder(Protocol):
         limit: Optional[int] = None,
     ) -> Any:
         """Apply OFFSET and LIMIT to a statement."""
-        ...
+        ...  # pragma: no cover
 
 
 class ResponseFormatter(Protocol):
@@ -256,7 +260,7 @@ class ResponseFormatter(Protocol):
         return_as_model: bool = False,
     ) -> Union[Dict, Any]:
         """Format single record response."""
-        ...
+        ...  # pragma: no cover
 
     def format_multi_response(
         self,
@@ -265,7 +269,7 @@ class ResponseFormatter(Protocol):
         return_as_model: bool = False,
     ) -> List[Any]:
         """Format multiple records response."""
-        ...
+        ...  # pragma: no cover
 
     async def format_joined_response(
         self,
@@ -275,7 +279,7 @@ class ResponseFormatter(Protocol):
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """Format response for joined query results."""
-        ...
+        ...  # pragma: no cover
 
 
 class DatabaseAdapter(Protocol):
@@ -295,19 +299,19 @@ class DatabaseAdapter(Protocol):
         **kwargs: Any,
     ) -> tuple[Any, List[Dict]]:
         """Execute database-specific upsert operation."""
-        ...
+        ...  # pragma: no cover
 
     def supports_returning_clause(self) -> bool:
         """Check if database supports RETURNING clause."""
-        ...
+        ...  # pragma: no cover
 
     def supports_upsert(self) -> bool:
         """Check if database supports native upsert operations."""
-        ...
+        ...  # pragma: no cover
 
     def get_dialect_name(self) -> str:
         """Get the database dialect name."""
-        ...
+        ...  # pragma: no cover
 
 
 class ValidationProcessor(Protocol):
@@ -327,7 +331,7 @@ class ValidationProcessor(Protocol):
         **kwargs: Any,
     ) -> int:
         """Validate update/delete operations."""
-        ...
+        ...  # pragma: no cover
 
     def validate_pagination_params(
         self,
@@ -335,7 +339,7 @@ class ValidationProcessor(Protocol):
         limit: Optional[int],
     ) -> None:
         """Validate pagination parameters."""
-        ...
+        ...  # pragma: no cover
 
     def validate_joined_query_params(
         self,
@@ -343,4 +347,4 @@ class ValidationProcessor(Protocol):
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """Validate joined query parameters."""
-        ...
+        ...  # pragma: no cover

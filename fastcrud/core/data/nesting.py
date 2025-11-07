@@ -9,7 +9,7 @@ from typing import Any, Optional, Callable, TYPE_CHECKING
 
 from .transforms import handle_one_to_one, handle_one_to_many, sort_nested_list
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ..config import JoinConfig
 
 

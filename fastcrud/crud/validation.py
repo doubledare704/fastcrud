@@ -9,7 +9,7 @@ from typing import Any, Callable, Awaitable, Optional, TYPE_CHECKING
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.orm.util import AliasedClass
     from ..types import ModelType, SelectSchemaType
     from ..core import JoinConfig, CountConfig

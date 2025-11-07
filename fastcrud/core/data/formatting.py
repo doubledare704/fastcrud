@@ -13,7 +13,7 @@ from ..introspection import get_primary_key_names
 from .nesting import nest_join_data
 from .transforms import format_multi_response
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ..config import JoinConfig
     from sqlalchemy.ext.asyncio import AsyncSession
 

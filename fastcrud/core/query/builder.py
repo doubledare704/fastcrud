@@ -16,7 +16,7 @@ from ...types import ModelType
 from ..introspection import get_primary_key_columns
 from ..field_management import extract_matching_columns_from_schema
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ...types import SelectSchemaType
 
 
