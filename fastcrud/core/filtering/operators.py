@@ -9,6 +9,8 @@ from typing import Callable, Any, Optional
 from sqlalchemy import Column
 from sqlalchemy.sql.elements import ColumnElement
 
+from ...types import FilterValueType
+
 FilterCallable = Callable[[Column[Any]], Callable[..., ColumnElement[bool]]]
 
 SUPPORTED_FILTERS: dict[str, FilterCallable] = {
@@ -36,7 +38,9 @@ SUPPORTED_FILTERS: dict[str, FilterCallable] = {
 }
 
 
-def get_sqlalchemy_filter(operator: str, value: Any) -> Optional[FilterCallable]:
+def get_sqlalchemy_filter(
+    operator: str, value: FilterValueType
+) -> Optional[FilterCallable]:
     """
     Get SQLAlchemy filter function for operator with validation.
 
@@ -64,7 +68,11 @@ def get_sqlalchemy_filter(operator: str, value: Any) -> Optional[FilterCallable]
         if not isinstance(value, (tuple, list, set)):
             raise ValueError(f"<{operator}> filter must be tuple, list or set")
 
-    if operator == "between" and len(value) != 2:
+    if (
+        operator == "between"
+        and isinstance(value, (tuple, list, set))
+        and len(value) != 2
+    ):
         raise ValueError("Between operator requires exactly 2 values")
 
     return SUPPORTED_FILTERS.get(operator)
