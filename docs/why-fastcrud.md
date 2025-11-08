@@ -371,7 +371,7 @@ Each step builds naturally on the previous one. You start with automatic endpoin
 Ready to see it in action? 
 
 <div style="text-align: center; margin-top: 30px;">
-    <a href="usage/overview/" class="md-button md-button--primary">
+    <a href="../usage/overview/" class="md-button md-button--primary">
         Get Started with FastCRUD →
     </a>
 </div>
