@@ -517,6 +517,17 @@ class FastCRUD(
         object: CreateSchemaType,
         *,
         commit: bool = True,
+        schema_to_select: type[SelectSchemaType],
+        return_as_model: Literal[False] = False,
+    ) -> Optional[dict[str, Any]]: ...
+
+    @overload
+    async def create(
+        self,
+        db: AsyncSession,
+        object: CreateSchemaType,
+        *,
+        commit: bool = True,
         schema_to_select: Optional[type[SelectSchemaType]] = None,
         return_as_model: bool = False,
     ) -> Union[ModelType, SelectSchemaType, dict[str, Any], None]: ...
@@ -668,6 +679,17 @@ class FastCRUD(
         self,
         db: AsyncSession,
         *,
+        schema_to_select: type[SelectSchemaType],
+        return_as_model: Literal[False] = False,
+        one_or_none: bool = False,
+        **kwargs: Any,
+    ) -> Optional[dict[str, Any]]: ...
+
+    @overload
+    async def get(
+        self,
+        db: AsyncSession,
+        *,
         schema_to_select: Optional[type[SelectSchemaType]] = None,
         return_as_model: bool = False,
         one_or_none: bool = False,
@@ -774,6 +796,16 @@ class FastCRUD(
         db: AsyncSession,
         instance: Union[UpdateSchemaType, CreateSchemaType],
         *,
+        schema_to_select: type[SelectSchemaType],
+        return_as_model: Literal[False] = False,
+    ) -> Optional[dict[str, Any]]: ...
+
+    @overload
+    async def upsert(
+        self,
+        db: AsyncSession,
+        instance: Union[UpdateSchemaType, CreateSchemaType],
+        *,
         schema_to_select: Optional[type[SelectSchemaType]] = None,
         return_as_model: bool = False,
     ) -> Union[SelectSchemaType, dict[str, Any], None]: ...
@@ -848,6 +880,20 @@ class FastCRUD(
         commit: bool = False,
         return_columns: Optional[list[str]] = None,
         schema_to_select: None = None,
+        return_as_model: Literal[False] = False,
+        update_override: Optional[dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> Optional[UpsertMultiResponseDict]: ...
+
+    @overload
+    async def upsert_multi(
+        self,
+        db: AsyncSession,
+        instances: list[Union[UpdateSchemaType, CreateSchemaType]],
+        *,
+        commit: bool = False,
+        return_columns: Optional[list[str]] = None,
+        schema_to_select: type[SelectSchemaType],
         return_as_model: Literal[False] = False,
         update_override: Optional[dict[str, Any]] = None,
         **kwargs: Any,
@@ -1152,6 +1198,21 @@ class FastCRUD(
         offset: int = 0,
         limit: Optional[int] = 100,
         schema_to_select: None = None,
+        sort_columns: Optional[Union[str, list[str]]] = None,
+        sort_orders: Optional[Union[str, list[str]]] = None,
+        return_as_model: Literal[False] = False,
+        return_total_count: bool = True,
+        **kwargs: Any,
+    ) -> GetMultiResponseDict: ...
+
+    @overload
+    async def get_multi(
+        self,
+        db: AsyncSession,
+        *,
+        offset: int = 0,
+        limit: Optional[int] = 100,
+        schema_to_select: type[SelectSchemaType],
         sort_columns: Optional[Union[str, list[str]]] = None,
         sort_orders: Optional[Union[str, list[str]]] = None,
         return_as_model: Literal[False] = False,
@@ -1687,6 +1748,32 @@ class FastCRUD(
     async def get_multi_joined(
         self,
         db: AsyncSession,
+        schema_to_select: type[SelectSchemaType],
+        return_as_model: Literal[False] = False,
+        join_model: Optional[type[ModelType]] = None,
+        join_on: Optional[Any] = None,
+        join_prefix: Optional[str] = None,
+        join_schema_to_select: Optional[type[SelectSchemaType]] = None,
+        join_type: str = "left",
+        alias: Optional[AliasedClass[Any]] = None,
+        join_filters: Optional[dict] = None,
+        nest_joins: bool = False,
+        offset: int = 0,
+        limit: Optional[int] = 100,
+        sort_columns: Optional[Union[str, list[str]]] = None,
+        sort_orders: Optional[Union[str, list[str]]] = None,
+        joins_config: Optional[list[JoinConfig]] = None,
+        counts_config: Optional[list[CountConfig]] = None,
+        return_total_count: bool = True,
+        relationship_type: Optional[str] = None,
+        nested_schema_to_select: Optional[dict[str, type[SelectSchemaType]]] = None,
+        **kwargs: Any,
+    ) -> GetMultiResponseDict: ...
+
+    @overload
+    async def get_multi_joined(
+        self,
+        db: AsyncSession,
         *,
         schema_to_select: Optional[type[SelectSchemaType]] = None,
         return_as_model: bool = False,
@@ -2127,6 +2214,20 @@ class FastCRUD(
         *,
         cursor: Any = None,
         limit: int = 100,
+        schema_to_select: type[SelectSchemaType],
+        sort_column: str = "id",
+        sort_order: str = "asc",
+        return_as_model: Literal[False] = False,
+        **kwargs: Any,
+    ) -> dict[str, Union[list[dict[str, Any]], Any]]: ...
+
+    @overload
+    async def get_multi_by_cursor(
+        self,
+        db: AsyncSession,
+        *,
+        cursor: Any = None,
+        limit: int = 100,
         schema_to_select: Optional[type[SelectSchemaType]] = None,
         sort_column: str = "id",
         sort_order: str = "asc",
@@ -2282,6 +2383,21 @@ class FastCRUD(
         commit: bool = True,
         return_columns: Optional[list[str]] = None,
         schema_to_select: None = None,
+        return_as_model: Literal[False] = False,
+        one_or_none: bool = False,
+        **kwargs: Any,
+    ) -> Optional[dict[str, Any]]: ...
+
+    @overload
+    async def update(
+        self,
+        db: AsyncSession,
+        object: Union[UpdateSchemaType, dict[str, Any]],
+        *,
+        allow_multiple: bool = False,
+        commit: bool = True,
+        return_columns: Optional[list[str]] = None,
+        schema_to_select: type[SelectSchemaType],
         return_as_model: Literal[False] = False,
         one_or_none: bool = False,
         **kwargs: Any,
