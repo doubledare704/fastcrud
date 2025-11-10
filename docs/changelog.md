@@ -5,6 +5,30 @@
 The Changelog documents all notable changes made to FastCRUD. This includes new features, bug fixes, and improvements. It's organized by version and date, providing a clear history of the library's development.
 ___
 
+## [0.19.1] - Nov 10, 2025
+
+#### Improved
+- **Enhanced Type Safety for Schema-based Column Selection** by [@igorbenav](https://github.com/igorbenav)
+  - Added missing `@overload` signatures for `schema_to_select` with `return_as_model=False`
+  - Eliminates union types and manual casting when using schema-based column selection with dictionary returns
+  - Enhanced 8 methods: `create()`, `get()`, `update()`, `upsert()`, `upsert_multi()`, `get_multi()`, `get_multi_by_cursor()`, `get_multi_joined()`
+  - Provides precise type inference for the common pattern of column selection with dict access
+
+#### Fixed
+- **Documentation Link** by [@igorbenav](https://github.com/igorbenav)
+  - Fixed broken link in project documentation
+
+#### Breaking Changes
+⚠️ **None** - This release maintains full backward compatibility with 0.19.0
+
+#### What's Changed
+* fix link by [@igorbenav](https://github.com/igorbenav) in https://github.com/benavlabs/fastcrud/pull/284
+* Overload for select_schema but not return_as_model by [@igorbenav](https://github.com/igorbenav) in https://github.com/benavlabs/fastcrud/pull/285
+
+**Full Changelog**: https://github.com/benavlabs/fastcrud/compare/v0.19.0...v0.19.1
+
+___
+
 ## [0.19.0] - Nov 7, 2025
 
 #### Added
