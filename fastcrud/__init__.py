@@ -1,4 +1,6 @@
-__version__ = "0.18.1"
+from importlib.metadata import version
+
+__version__ = version("fastcrud")
 
 from sqlalchemy.orm import aliased
 from sqlalchemy.orm.util import AliasedClass
